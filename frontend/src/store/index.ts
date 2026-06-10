@@ -7,7 +7,7 @@
  */
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
-import type { FullHealthResponse, HealthStatus } from "@/types";
+import type { FullHealthResponse } from "@/types";
 import { apiFetch } from "@/lib/utils";
 
 // ── Health Slice ───────────────────────────────────────────────────────────────
