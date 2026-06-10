@@ -27,7 +27,6 @@ def setup_logging() -> None:
             structlog.processors.dict_tracebacks,
             structlog.processors.JSONRenderer(),
         ]
-        renderer = structlog.processors.JSONRenderer()
     else:
         processors = shared_processors + [
             structlog.dev.ConsoleRenderer(colors=True, exception_formatter=structlog.dev.plain_traceback),
