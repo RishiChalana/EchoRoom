@@ -1,0 +1,76 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EchoRoom .gitignore
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+!frontend/.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# Models (large binary files)
+backend/models/
+*.bin
+*.safetensors
+*.pt
+*.pth
+
+# Alembic
+# Keep versions/ tracked, but not __pycache__
+backend/alembic/versions/__pycache__/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.npm
+frontend/.pnp
+frontend/.pnp.js
+
+# Logs
+*.log
+logs/
+
+# Docker
+docker/postgres/data/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Eval datasets with labels (may contain PII from annotations)
+eval/datasets/annotations/
+# Keep synthetic datasets
+!eval/datasets/synthetic/
+
+# Secrets
+*.pem
+*.key
+*.cert
+service_account.json

@@ -1,0 +1,34 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EchoRoom Backend Dependencies
+# Pin exact versions for reproducibility.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Web Framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+
+# Database — async SQLAlchemy + asyncpg driver
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+psycopg2-binary==2.9.10      # Sync driver for Alembic env.py
+
+# Redis
+redis[asyncio]==5.2.1
+
+# Config & Validation
+pydantic==2.10.3
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# Logging
+structlog==24.4.0
+colorama==0.4.6              # Windows color support for dev console
+
+# HTTP client (for health checks and future integrations)
+httpx==0.28.0
+
+# ── Dev / Test (install separately in CI) ────────────────────────────────────
+# pytest==8.3.4
+# pytest-asyncio==0.24.0
+# pytest-cov==6.0.0
