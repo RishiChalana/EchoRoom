@@ -7,8 +7,10 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import DeclarativeBase, MappedColumn, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, MappedColumn, mapped_column
 from sqlalchemy import DateTime, UUID as SAUUID
+from datetime import datetime
+from typing import Optional
 from sqlalchemy.sql import func
 import uuid
 import structlog
@@ -56,12 +58,12 @@ class TimestampMixin:
         default=uuid.uuid4,
         nullable=False,
     )
-    created_at: MappedColumn = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
         nullable=False,
     )
-    updated_at: MappedColumn = mapped_column(
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         onupdate=func.now(),
         nullable=True,
