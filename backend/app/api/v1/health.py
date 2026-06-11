@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import time
 import asyncio
-
-import asyncio
 from fastapi import APIRouter, Response, status
 import structlog
 

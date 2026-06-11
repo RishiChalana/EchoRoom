@@ -29,3 +29,18 @@ class SessionResponse(BaseModel):
 
 class SessionListResponse(BaseModel):
     sessions: List[SessionResponse]
+
+
+class SessionReportResponse(BaseModel):
+    id: uuid.UUID
+    session_id: uuid.UUID
+    overall_score: Optional[float] = None
+    engagement_avg: Optional[float] = None
+    clarity_avg: Optional[float] = None
+    insights: List = []
+    rewrites: List = []
+    summary: Optional[str] = None
+    coach_model: Optional[str] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

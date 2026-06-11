@@ -1,0 +1,26 @@
+from __future__ import annotations
+
+from celery import Celery
+from app.core.config import settings
+
+celery_app = Celery(
+    "echoroom",
+    broker=settings.REDIS_URL,
+    backend=settings.REDIS_URL,
+    include=["app.workers.tasks"],
+)
+
+celery_app.conf.update(
+    task_serializer="json",
+    accept_content=["json"],
+    result_serializer="json",
+    timezone="UTC",
+    enable_utc=True,
+    task_routes={
+        "app.workers.tasks.transcribe_chunk": {"queue": "local"},
+        "app.workers.tasks.classify_engagement": {"queue": "local"},
+        "app.workers.tasks.analyze_clarity": {"queue": "llm"},
+        "app.workers.tasks.process_coach_session": {"queue": "coach"},
+    },
+    task_default_queue="local",
+)
