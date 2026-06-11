@@ -15,15 +15,7 @@ interface PageProps {
 
 export default function SessionPage({ params }: PageProps) {
   const router = useRouter();
-  const {
-    session,
-    engagementAvg,
-    clarityAvg,
-    latestTranscript,
-    transcriptHistory,
-    endSession,
-    resetSession,
-  } = useAppStore();
+  const { session, loadSession, endSession, engagementAvg, clarityAvg, latestTranscript, transcriptHistory } = useAppStore();
 
   const { sendAudio } = useSession(params.id);
 
@@ -37,10 +29,12 @@ export default function SessionPage({ params }: PageProps) {
   }, [params.id, endSession, router]);
 
   useEffect(() => {
-    return () => {
-      resetSession();
-    };
-  }, [resetSession]);
+    if (!session || session.id !== params.id) {
+      loadSession(params.id).catch((err) =>
+        console.error("[EchoRoom] Failed to load session:", err)
+      );
+    }
+  }, [params.id]);
 
   if (!session) {
     return (

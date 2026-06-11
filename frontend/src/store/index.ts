@@ -32,6 +32,7 @@ interface SessionSlice {
   latestTranscript: string | null;
   transcriptHistory: TranscriptChunk[];
   createSession: (audienceProfile: string) => Promise<Session>;
+  loadSession: (sessionId: string) => Promise<Session>;
   endSession: (sessionId: string) => Promise<void>;
   updateFromStateEvent: (update: SessionStateUpdate) => void;
   resetSession: () => void;
@@ -87,6 +88,11 @@ export const useAppStore = create<AppStore>()(
           set({ sessionStatus: "error" });
           throw err;
         }
+      },
+      loadSession: async (sessionId: string) => {
+        const data = await apiFetch<Session>(`/api/v1/sessions/${sessionId}`);
+        set({ session: data, sessionStatus: "active" });
+        return data;
       },
 
       endSession: async (sessionId: string) => {
