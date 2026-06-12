@@ -13,7 +13,10 @@ import type {
   SessionStateUpdate,
   TranscriptChunk,
 } from "@/types";
-import { apiFetch } from "@/lib/utils";
+import { apiFetch, API_URL } from "@/lib/utils";
+
+// Outcome of a single report poll — lets the page decide whether to keep polling.
+export type ReportFetchResult = "ready" | "generating" | "not_found" | "error";
 
 // ── Health Slice ───────────────────────────────────────────────────────────────
 interface HealthSlice {
@@ -41,8 +44,8 @@ interface SessionSlice {
 // ── Report Slice ──────────────────────────────────────────────────────────────
 interface ReportSlice {
   report: SessionReport | null;
-  reportStatus: "idle" | "loading" | "ready" | "error";
-  fetchReport: (sessionId: string) => Promise<void>;
+  reportStatus: "idle" | "loading" | "generating" | "ready" | "error";
+  fetchReport: (sessionId: string) => Promise<ReportFetchResult>;
 }
 
 // ── App Store ─────────────────────────────────────────────────────────────────
@@ -112,6 +115,26 @@ export const useAppStore = create<AppStore>()(
         if (update.engagement_avg !== null) patch.engagementAvg = update.engagement_avg;
         if (update.clarity_avg !== null) patch.clarityAvg = update.clarity_avg;
         if (update.latest_transcript !== null) patch.latestTranscript = update.latest_transcript;
+
+        // Append to history only when the transcript is present and changed — the
+        // orchestrator re-sends the same latest_transcript on every state event.
+        if (update.latest_transcript) {
+          const history = get().transcriptHistory;
+          const last = history[history.length - 1];
+          if (!last || last.text !== update.latest_transcript) {
+            const chunk: TranscriptChunk = {
+              chunk_id: `${Date.now()}-${history.length}`,
+              session_id: update.session_id,
+              text: update.latest_transcript,
+              words: [],
+              language: "",
+              avg_logprob: 0,
+              no_speech_prob: 0,
+            };
+            patch.transcriptHistory = [...history, chunk];
+          }
+        }
+
         set(patch);
       },
 
@@ -130,14 +153,33 @@ export const useAppStore = create<AppStore>()(
       report: null,
       reportStatus: "idle",
 
-      fetchReport: async (sessionId: string) => {
-        set({ reportStatus: "loading" });
+      fetchReport: async (sessionId: string): Promise<ReportFetchResult> => {
         try {
-          const report = await apiFetch<SessionReport>(`/api/v1/reports/${sessionId}`);
+          // Raw fetch (not apiFetch) so we can read the 202 "generating" status.
+          const res = await fetch(`${API_URL}/api/v1/reports/${sessionId}`, {
+            headers: { "Content-Type": "application/json" },
+          });
+
+          if (res.status === 202) {
+            set({ reportStatus: "generating" });
+            return "generating";
+          }
+          if (res.status === 404) {
+            set({ reportStatus: "error" });
+            return "not_found";
+          }
+          if (!res.ok) {
+            set({ reportStatus: "error" });
+            return "error";
+          }
+
+          const report = (await res.json()) as SessionReport;
           set({ report, reportStatus: "ready" });
+          return "ready";
         } catch (err) {
           set({ reportStatus: "error" });
-          throw err;
+          console.error("[EchoRoom] Failed to fetch report:", err);
+          return "error";
         }
       },
     }),

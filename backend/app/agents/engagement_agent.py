@@ -5,6 +5,7 @@ import re
 import redis
 import structlog
 
+from app.agents._persist import persist_event
 from app.core.config import settings
 from app.schemas.events import EngagementSignal
 
@@ -67,6 +68,14 @@ def classify_engagement(session_id: str, chunk_id: str, text: str) -> Engagement
         r.publish(f"engagement:{session_id}", signal.model_dump_json())
     finally:
         r.close()
+
+    persist_event(
+        session_id,
+        chunk_id,
+        agent_name="engagement_classifier",
+        event_type="engagement_signal",
+        payload={"score": signal.score, "label": signal.label},
+    )
 
     log.info("Engagement classified", session_id=session_id, chunk_id=chunk_id, label=label)
     return signal

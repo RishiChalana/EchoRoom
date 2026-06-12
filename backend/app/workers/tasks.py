@@ -8,23 +8,22 @@ log = structlog.get_logger(__name__)
 
 
 @celery_app.task(name="app.workers.tasks.transcribe_chunk", bind=True, max_retries=3)
-def transcribe_chunk(self, session_id: str, chunk_id: str, audio_bytes: list) -> dict:
+def transcribe_chunk(self, session_id: str, chunk_id: str, audio_b64: str) -> dict:
     try:
         from app.agents.transcript_agent import run_transcription  # noqa: PLC0415
 
-        chunk = run_transcription(session_id, chunk_id, audio_bytes)
+        chunk = run_transcription(session_id, chunk_id, audio_b64)
 
-        # Chain: dispatch engagement + clarity after transcription
+        # Chain: dispatch engagement only. Clarity is now a single whole-transcript
+        # pass run by the coach agent at session end (per-chunk clarity 429'd on
+        # the free tier). The analyze_clarity task remains defined below but is no
+        # longer dispatched in the live chain.
         classify_engagement.apply_async(
             args=[session_id, chunk_id, chunk.text],
             queue="local",
         )
-        analyze_clarity.apply_async(
-            args=[session_id, chunk_id, chunk.text],
-            queue="llm",
-        )
 
-        log.info("Transcription complete, chained tasks dispatched", chunk_id=chunk_id)
+        log.info("Transcription complete, engagement dispatched", chunk_id=chunk_id)
         return chunk.model_dump()
     except Exception as exc:
         log.error("Transcription failed", chunk_id=chunk_id, error=str(exc))

@@ -7,4 +7,11 @@ Classify each insight as:
 - critical: a significant issue that must be addressed before the next session
 
 Each insight must reference specific evidence from the session data.
+
+The "evidence" field must be a SHORT, human-readable phrase that cites the metric
+in plain language — for example "Average engagement was 40%" or "One segment had
+no content". Keep it under ~12 words. It must NEVER include chunk IDs, JSON, dict
+or list syntax (no braces or brackets), or raw field names like
+"segment_classifications". Write it the way you would say it to the speaker.
+
 Return ONLY a JSON array of insight objects with fields: category, text, evidence.

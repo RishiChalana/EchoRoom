@@ -62,6 +62,12 @@ export interface RewriteSuggestion {
   reason: string;
 }
 
+export interface EngagementTimelinePoint {
+  index: number;
+  engagement_score: number;
+  text_preview: string;
+}
+
 export interface SessionReport {
   id: string;
   session_id: string;
@@ -73,6 +79,7 @@ export interface SessionReport {
   summary: string | null;
   coach_model: string | null;
   created_at: string;
+  engagement_timeline: EngagementTimelinePoint[];
 }
 
 // ── Agent events (mirroring backend/app/schemas/events.py) ───────────────────

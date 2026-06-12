@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, MappedColumn, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, MappedColumn, mapped_column, sessionmaker
 from sqlalchemy import DateTime, UUID as SAUUID
 from datetime import datetime
 from typing import Optional
@@ -33,6 +33,25 @@ engine = create_async_engine(
 AsyncSessionFactory = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False,
+)
+
+
+# ── Sync Engine + Session Factory (Celery worker context) ─────────────────────
+# Agents run inside Celery (synchronous), not async FastAPI, so they need a sync
+# session. Built alongside — never replaces — the async engine above.
+# database_url_sync swaps +asyncpg → +psycopg2 (psycopg2-binary is installed).
+sync_engine = create_engine(
+    settings.database_url_sync,
+    echo=settings.DATABASE_ECHO,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+)
+
+SyncSessionFactory = sessionmaker(
+    bind=sync_engine,
     expire_on_commit=False,
     autocommit=False,
     autoflush=False,
