@@ -357,17 +357,29 @@ class CoachAgent:
         state["overall_score"] = overall_score
 
         with SyncSessionFactory() as db:
-            report = SessionReport(
-                session_id=state["session_id"],
-                overall_score=overall_score,
-                engagement_avg=state.get("engagement_avg"),
-                clarity_avg=state.get("clarity_avg"),
-                insights=insights_data,
-                rewrites=rewrites_data,
-                summary=summary,
-                coach_model="gemini-2.5-flash",
+            # Guard against the retry race: the task has max_retries=1, so a
+            # second attempt after a partial failure would hit the UNIQUE
+            # constraint on session_id. Skip the INSERT if a row already exists.
+            existing = db.execute(
+                select(SessionReport).where(SessionReport.session_id == state["session_id"])
             )
-            db.add(report)
+            if existing.scalar_one_or_none() is not None:
+                log.warning(
+                    "report already exists, skipping duplicate insert",
+                    session_id=state["session_id"],
+                )
+            else:
+                report = SessionReport(
+                    session_id=state["session_id"],
+                    overall_score=overall_score,
+                    engagement_avg=state.get("engagement_avg"),
+                    clarity_avg=state.get("clarity_avg"),
+                    insights=insights_data,
+                    rewrites=rewrites_data,
+                    summary=summary,
+                    coach_model="gemini-2.5-flash",
+                )
+                db.add(report)
 
             result = db.execute(
                 select(Session).where(Session.id == state["session_id"])

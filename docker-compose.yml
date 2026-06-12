@@ -93,7 +93,7 @@ services:
       target: development
     container_name: echoroom_worker
     restart: unless-stopped
-    command: celery -A app.workers.celery_app.celery_app worker --loglevel=info -Q local,llm -c 4
+    command: celery -A app.workers.celery_app.celery_app worker --loglevel=info -Q local -c 4
     env_file:
       - .env
     environment:
