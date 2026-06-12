@@ -1,3 +1,10 @@
+"""AgentEvent — append-only audit log of every agent output.
+
+INVARIANT (LOCKED RULE #4): rows in `agent_events` are INSERT-only. Never UPDATE
+or DELETE a row. Each event (transcript, engagement, clarity, etc.) is an
+immutable record written once by an agent and read later by the coach and report
+endpoints. Treat history as permanent; corrections are new rows, not edits.
+"""
 from __future__ import annotations
 
 import uuid

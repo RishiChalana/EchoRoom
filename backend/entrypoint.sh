@@ -47,9 +47,16 @@ done
 echo "✅ Redis is ready"
 
 # ── Run Alembic Migrations ────────────────────────────────────────────────────
-echo "🗄️  Running database migrations..."
-alembic upgrade head
-echo "✅ Migrations complete"
+# Migrations run from ONE place only (the api service) to avoid a startup race
+# where multiple services upgrade concurrently and collide on alembic_version.
+# Workers set RUN_MIGRATIONS=false and wait for api (which owns migrations).
+if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
+    echo "🗄️  Running database migrations..."
+    alembic upgrade head
+    echo "✅ Migrations complete"
+else
+    echo "⏭️  Skipping migrations (RUN_MIGRATIONS=false — api owns migrations)"
+fi
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Starting server..."

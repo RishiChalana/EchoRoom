@@ -14,6 +14,16 @@ log = structlog.get_logger(__name__)
 
 
 class OrchestratorAgent:
+    """Aggregates live transcript/engagement/clarity signals into a `state:` feed.
+
+    Running averages are held in instance memory and are intentionally
+    PER-CONNECTION: a fresh OrchestratorAgent is created for each WebSocket
+    connection, so the averages reset if the socket drops and reconnects
+    mid-session. This is by design (the live gauge reflects the current
+    connection), not a bug — the authoritative session-wide averages are
+    recomputed from agent_events by the coach at session end.
+    """
+
     def __init__(self, session_id: str) -> None:
         self.session_id = session_id
         self._engagement_scores: list[float] = []

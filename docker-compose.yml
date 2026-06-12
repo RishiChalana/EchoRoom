@@ -68,6 +68,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://echoroom:${POSTGRES_PASSWORD:-echoroom_dev_pass}@postgres:5432/echoroom
       REDIS_URL: redis://redis:6379/0
       ENVIRONMENT: development
+      RUN_MIGRATIONS: "true"    # api is the single migration owner
     volumes:
       - ./backend:/app
     depends_on:
@@ -99,6 +100,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://echoroom:${POSTGRES_PASSWORD:-echoroom_dev_pass}@postgres:5432/echoroom
       REDIS_URL: redis://redis:6379/0
       ENVIRONMENT: development
+      RUN_MIGRATIONS: "false"   # api owns migrations; avoid alembic_version race
     volumes:
       - ./backend:/app
     depends_on:
@@ -106,6 +108,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      api:
+        condition: service_healthy   # wait until api has applied migrations
     networks:
       - echoroom_net
 
@@ -124,6 +128,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://echoroom:${POSTGRES_PASSWORD:-echoroom_dev_pass}@postgres:5432/echoroom
       REDIS_URL: redis://redis:6379/0
       ENVIRONMENT: development
+      RUN_MIGRATIONS: "false"   # api owns migrations; avoid alembic_version race
     volumes:
       - ./backend:/app
     depends_on:
@@ -131,6 +136,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      api:
+        condition: service_healthy   # wait until api has applied migrations
     networks:
       - echoroom_net
 
