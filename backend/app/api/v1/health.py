@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-
+import asyncio
 from fastapi import APIRouter, Response, status
 import structlog
 
@@ -39,8 +39,7 @@ async def full_health(response: Response) -> FullHealthResponse:
     started_at = time.perf_counter()
 
     # Run dependency checks
-    db_ok = await check_db_health()
-    redis_ok = await check_redis_health()
+    db_ok, redis_ok = await asyncio.gather(check_db_health(), check_redis_health())
 
     all_healthy = db_ok and redis_ok
     latency_ms = round((time.perf_counter() - started_at) * 1000, 2)

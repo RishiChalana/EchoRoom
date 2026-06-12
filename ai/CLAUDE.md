@@ -12,10 +12,10 @@ EchoRoom is a real-time multi-agent AI system for communication intelligence.
 **Core value:** Close the feedback loop during practice — before a live audience.
 
 ## Current Status
-- Phase: Foundation (Week 1)
-- Last completed: Project scaffold, Docker setup, health endpoints
-- In progress: —
-- Blocked on: —
+- Phase: MVP Build (Week 2)
+- Last completed: Foundation + all audit fixes + database layer (Session, AgentEvent, SessionReport)
+- In progress: Sessions API, then agent pipeline
+- Blocked on: nothing
 
 ## Architecture Decisions (LOCKED — Do NOT change without updating this file)
 
@@ -47,6 +47,9 @@ EchoRoom/
 │   │   ├── core/           ← config, database, redis, logging
 │   │   ├── models/         ← SQLAlchemy ORM models
 │   │   ├── schemas/        ← Pydantic request/response schemas
+│   │   ├── agents/         ← real-time agent pipeline
+│   │   ├── workers/        ← Celery task queue
+│   │   ├── prompts/        ← LLM system prompts
 │   │   └── main.py         ← FastAPI app factory
 │   ├── alembic/            ← DB migrations
 │   └── tests/
@@ -98,7 +101,7 @@ pytest tests/ -m eval                      # Eval tests (requires benchmark data
 - Redis:        localhost:6379
 
 ## Prompt Locations
-All LLM system prompts → `backend/prompts/*.txt` (created Week 2+)
+All LLM system prompts → `backend/app/prompts/*.txt`
 Never hardcode prompts in agent Python files.
 
 ## Environment Variables Required

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import Literal
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -44,8 +43,9 @@ class Settings(BaseSettings):
     # ── Security ──────────────────────────────────────────────────────────────
     SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
 
-    # ── Future: OpenAI (Week 2+) ──────────────────────────────────────────────
+    # ── LLM providers ─────────────────────────────────────────────────────────
     OPENAI_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
 
     # ── Properties ────────────────────────────────────────────────────────────
     @property

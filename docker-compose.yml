@@ -1,5 +1,3 @@
-version: "3.9"
-
 # ─────────────────────────────────────────────────────────────────────────────
 # EchoRoom — Local Development Compose
 # Usage: docker compose up
@@ -72,7 +70,6 @@ services:
       ENVIRONMENT: development
     volumes:
       - ./backend:/app
-      - api_venv:/app/.venv
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,6 +81,56 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+    networks:
+      - echoroom_net
+
+  # ── Celery Worker (local + llm queues) ───────────────────────────────────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: echoroom_worker
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app.celery_app worker --loglevel=info -Q local,llm -c 4
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://echoroom:${POSTGRES_PASSWORD:-echoroom_dev_pass}@postgres:5432/echoroom
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: development
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - echoroom_net
+
+  # ── Celery Worker (coach queue — single concurrency for LangGraph) ────────────
+  worker_coach:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: echoroom_worker_coach
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app.celery_app worker --loglevel=info -Q coach -c 1
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://echoroom:${POSTGRES_PASSWORD:-echoroom_dev_pass}@postgres:5432/echoroom
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: development
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - echoroom_net
 
@@ -120,8 +167,6 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
-    driver: local
-  api_venv:
     driver: local
   frontend_node_modules:
     driver: local
