@@ -32,6 +32,55 @@ _INS_PROMPT = (Path(__file__).parent.parent / "prompts" / "coach_insights.txt").
 _REW_PROMPT = (Path(__file__).parent.parent / "prompts" / "coach_rewrite.txt").read_text
 
 
+def _room_context(profile: str) -> str:
+    contexts = {
+        "technical": """
+ROOM CONTEXT: Technical Presentation
+The speaker is explaining complex engineering or technical concepts.
+Evaluate for: precise vocabulary, logical structure, avoiding jargon
+without explanation, clear transitions between technical concepts,
+appropriate pacing for dense information. A "strength" here is
+technical precision and clarity under complexity. A "critical" issue
+is undefined acronyms, unclear architecture explanations, or loss of
+audience thread. Rewrites should preserve technical accuracy while
+improving clarity.
+""",
+        "interview": """
+ROOM CONTEXT: Professional Interview
+The speaker is in a high-stakes evaluative conversation.
+Evaluate for: concise direct answers (no rambling), structured
+responses (situation → action → result), confident but not arrogant
+tone, avoiding filler words that signal nervousness, specific examples
+over generalities. A "strength" is structured confident delivery.
+A "critical" issue is vague answers, excessive hedging, or trailing
+off without conclusion. Rewrites should make answers crisper and
+more confident.
+""",
+        "presentation": """
+ROOM CONTEXT: Public Presentation / Stage
+The speaker is presenting to a room or large audience.
+Evaluate for: narrative arc and storytelling, strong opening hook,
+clear takeaway per section, vocal variety and pacing for emphasis,
+deliberate pauses at key moments, audience engagement language
+("imagine", "consider", "here's what this means for you").
+A "strength" is commanding presence and clear narrative. A "critical"
+issue is flat delivery, unclear structure, or losing the thread.
+Rewrites should add narrative punch and audience connection.
+""",
+        "general": """
+ROOM CONTEXT: General Communication
+The speaker is practicing everyday professional communication.
+Evaluate for: clarity of thought, natural conversational flow,
+appropriate vocabulary for the context, listening and responding
+(not just broadcasting), warm but professional tone.
+A "strength" is natural engaging communication. A "critical" issue
+is confusing structure or disconnected thoughts. Rewrites should
+make communication feel more natural and purposeful.
+""",
+    }
+    return contexts.get(profile, contexts["general"])
+
+
 class _SegmentClassification(BaseModel):
     chunk_id: str
     classification: Literal["strong", "weak", "critical"]
@@ -44,6 +93,7 @@ class _SegmentClassificationList(BaseModel):
 
 class CoachState(TypedDict):
     session_id: str
+    audience_profile: str
     events: List[dict]
     segment_classifications: List[dict]
     insights: List[CoachInsight]
@@ -100,6 +150,7 @@ class CoachAgent:
             )
             session_row = session_result.scalar_one_or_none()
             duration_seconds = session_row.duration_seconds if session_row else None
+            audience_profile = (session_row.audience_profile if session_row else None) or "general"
 
         serialized = [
             {
@@ -127,7 +178,7 @@ class CoachAgent:
             if e.agent_name == "transcript" and e.payload.get("text")
         ).strip()
         clarity_result = await asyncio.to_thread(
-            analyze_transcript_clarity, state["session_id"], full_text
+            analyze_transcript_clarity, state["session_id"], full_text, audience_profile
         )
 
         total_words = sum(
@@ -143,6 +194,7 @@ class CoachAgent:
 
         return {
             **state,
+            "audience_profile": audience_profile,
             "events": serialized,
             "engagement_avg": (
                 round(sum(engagement_scores) / len(engagement_scores), 4)
@@ -160,13 +212,14 @@ class CoachAgent:
             return {**state, "segment_classifications": []}
 
         context = json.dumps(transcript_events[:50], indent=2)
+        room_ctx = _room_context(state.get("audience_profile", "general"))
         try:
             response: _SegmentClassificationList = await self._client.chat.completions.create(
                 model=_MODEL,
                 response_model=_SegmentClassificationList,
                 messages=[
                     {"role": "system", "content": _SEG_PROMPT()},
-                    {"role": "user", "content": f"Transcript segments:\n{context}"},
+                    {"role": "user", "content": f"Room context:\n{room_ctx}\n\nTranscript segments:\n{context}"},
                 ],
                 max_retries=1,
             )
@@ -227,12 +280,13 @@ class CoachAgent:
             "event_count": len(state.get("events", [])),
         }
 
+        ins_system = _INS_PROMPT() + "\n\n" + _room_context(state.get("audience_profile", "general"))
         try:
             insights: List[CoachInsight] = await self._client.chat.completions.create(
                 model=_MODEL,
                 response_model=List[CoachInsight],
                 messages=[
-                    {"role": "system", "content": _INS_PROMPT()},
+                    {"role": "system", "content": ins_system},
                     {"role": "user", "content": json.dumps(context)},
                 ],
                 max_retries=1,
@@ -335,6 +389,7 @@ class CoachAgent:
         }
         rewrites: List[RewriteSuggestion] = []
 
+        rew_system = _REW_PROMPT() + "\n\n" + _room_context(state.get("audience_profile", "general"))
         try:
             for seg in weak_chunks:
                 event = events_by_chunk.get(seg["chunk_id"])
@@ -348,7 +403,7 @@ class CoachAgent:
                     model=_MODEL,
                     response_model=RewriteSuggestion,
                     messages=[
-                        {"role": "system", "content": _REW_PROMPT()},
+                        {"role": "system", "content": rew_system},
                         {"role": "user", "content": f"Original passage:\n{original_text}"},
                     ],
                     max_retries=1,
@@ -396,7 +451,7 @@ class CoachAgent:
                     insights=insights_data,
                     rewrites=rewrites_data,
                     summary=summary,
-                    coach_model="gemini-2.5-flash",
+                    coach_model=f"gemini-2.5-flash ({state.get('audience_profile', 'general')})",
                     wpm=state.get("wpm"),
                 )
                 db.add(report)
@@ -427,6 +482,7 @@ class CoachAgent:
     async def run(self) -> dict:
         initial_state: CoachState = {
             "session_id": self.session_id,
+            "audience_profile": "general",
             "events": [],
             "segment_classifications": [],
             "insights": [],

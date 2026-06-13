@@ -4,21 +4,10 @@ import GitHubProvider from "next-auth/providers/github";
 import type { NextAuthOptions } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import type { Session } from "next-auth";
-/*import CredentialsProvider from "next-auth/providers/credentials"
-
-CredentialsProvider({
-  name: "Test",
-  credentials: {
-    username: { label: "Username", type: "text" }
-  },
-  async authorize(credentials) {
-    // Temporary test — always succeeds
-    return { id: "1", name: "Test User", email: "test@test.com" }
-  }
-})*/
 
 const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
+  session: { strategy: "jwt" as const },
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",

@@ -72,7 +72,11 @@ def analyze_clarity(session_id: str, chunk_id: str, text: str) -> ClarityAnalysi
     return analysis
 
 
-def analyze_transcript_clarity(session_id: str, full_text: str) -> dict:
+def analyze_transcript_clarity(
+    session_id: str,
+    full_text: str,
+    audience_profile: str = "general",
+) -> dict:
     """One-shot clarity analysis over an entire session transcript.
 
     Returns {"score": float | None, "issues": [ClarityIssue dicts]}. Used by the
@@ -92,13 +96,15 @@ def analyze_transcript_clarity(session_id: str, full_text: str) -> dict:
         mode=instructor.Mode.JSON,
     )
 
+    room_note = f"Note: This is a {audience_profile} communication context.\n\n"
+
     try:
         response: _ClarityResponse = client.chat.completions.create(
             model=_MODEL,
             response_model=_ClarityResponse,
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Full session transcript:\n{full_text}"},
+                {"role": "user", "content": f"{room_note}Full session transcript:\n{full_text}"},
             ],
             max_retries=1,
         )
@@ -107,5 +113,5 @@ def analyze_transcript_clarity(session_id: str, full_text: str) -> dict:
         return {"score": None, "issues": [], "error": str(exc)}
 
     score = round(max(0.0, min(1.0, response.score)), 4)
-    log.info("Clarity batch analyzed", session_id=session_id, score=score)
+    log.info("Clarity batch analyzed", session_id=session_id, score=score, audience_profile=audience_profile)
     return {"score": score, "issues": [i.model_dump() for i in response.issues]}
