@@ -10,13 +10,17 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@types/three": "^0.184.1",
     "clsx": "^2.1.1",
     "geist": "^1.7.2",
+    "lucide-react": "^1.18.0",
     "next": "14.2.16",
+    "next-auth": "^4.24.14",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.15.4",
     "tailwind-merge": "^2.5.4",
+    "three": "^0.184.0",
     "zustand": "^5.0.1"
   },
   "devDependencies": {

@@ -5,12 +5,13 @@ from typing import Optional
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.session import Session
+from app.models.session_report import SessionReport
 from app.schemas.session import CreateSessionRequest, SessionListResponse, SessionResponse
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -25,6 +26,7 @@ async def create_session(
     session = Session(
         status="active",
         audience_profile=body.audience_profile,
+        name=body.name,
         report_ready=False,
     )
     db.add(session)
@@ -83,6 +85,26 @@ async def end_session(
 
     log.info("Session ended, coach task dispatched", session_id=str(session_id))
     return SessionResponse.model_validate(session)
+
+
+@router.delete("/{session_id}")
+async def delete_session(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    result = await db.execute(select(Session).where(Session.id == session_id))
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    # Delete associated report first (no cascade in FK definition)
+    report_result = await db.execute(select(SessionReport).where(SessionReport.session_id == session_id))
+    report = report_result.scalar_one_or_none()
+    if report:
+        await db.delete(report)
+    await db.delete(session)
+    await db.flush()
+    log.info("Session deleted", session_id=str(session_id))
+    return Response(status_code=204)
 
 
 @router.get("", response_model=SessionListResponse)

@@ -1,181 +1,346 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useAppStore } from "@/store";
-import { cn } from "@/lib/utils";
-import type { AudienceProfile } from "@/types";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { getHealth } from "@/lib/api";
 
-// ── Status Badge ──────────────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: string | undefined }) {
-  const colour =
-    {
-      healthy: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-      degraded: "bg-yellow-500/20  text-yellow-400  border-yellow-500/30",
-      unhealthy: "bg-red-500/20     text-red-400     border-red-500/30",
-      unknown: "bg-gray-500/20    text-gray-400    border-gray-500/30",
-      loading: "bg-blue-500/20    text-blue-400    border-blue-500/30",
-    }[status ?? "unknown"] ?? "bg-gray-500/20 text-gray-400 border-gray-500/30";
+// Three.js sphere loaded client-side only
+const SphereScene = dynamic(() => import("@/components/landing/SphereScene"), { ssr: false });
 
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-wide",
-        colour
-      )}
-    >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {status ?? "unknown"}
-    </span>
-  );
-}
-
-// ── Service Row ───────────────────────────────────────────────────────────────
-function ServiceRow({ name, status }: { name: string; status: string }) {
-  return (
-    <div className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900/60 px-4 py-3">
-      <span className="text-sm text-gray-300">{name}</span>
-      <StatusBadge status={status} />
-    </div>
-  );
-}
-
-// ── Start Session Panel ───────────────────────────────────────────────────────
-const PROFILES: { value: AudienceProfile; label: string }[] = [
-  { value: "general", label: "General" },
-  { value: "technical", label: "Technical" },
-  { value: "executive", label: "Executive" },
-  { value: "students", label: "Students" },
-];
-
-function StartSessionPanel() {
-  const router = useRouter();
-  const { createSession, sessionStatus } = useAppStore();
-  const [profile, setProfile] = useState<AudienceProfile>("general");
-
-  const handleStart = async () => {
-    try {
-      const session = await createSession(profile);
-      router.push(`/session/${session.id}`);
-    } catch (err) {
-      console.error("[EchoRoom] Failed to create session:", err);
-    }
-  };
-
-  const isLoading = sessionStatus === "loading";
-
-  return (
-    <div className="w-full max-w-sm space-y-4 rounded-2xl border border-brand-500/20 bg-brand-500/5 p-6">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
-        Start a Session
-      </h2>
-
-      <div>
-        <label className="mb-2 block text-xs text-gray-500">Audience Profile</label>
-        <div className="grid grid-cols-2 gap-2">
-          {PROFILES.map((p) => (
-            <button
-              key={p.value}
-              onClick={() => setProfile(p.value)}
-              className={cn(
-                "rounded-lg border px-3 py-2 text-sm transition",
-                profile === p.value
-                  ? "border-brand-500 bg-brand-500/20 text-brand-500"
-                  : "border-gray-800 text-gray-400 hover:border-gray-700"
-              )}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <button
-        onClick={() => void handleStart()}
-        disabled={isLoading}
-        className={cn(
-          "w-full rounded-xl py-3 text-sm font-medium transition",
-          isLoading
-            ? "cursor-not-allowed bg-brand-500/50 text-white"
-            : "bg-brand-500 text-white hover:bg-brand-600"
-        )}
-      >
-        {isLoading ? "Starting…" : "Start Session"}
-      </button>
-    </div>
-  );
-}
-
-// ── Page ─────────────────────────────────────────────────────────────────────
-export default function HomePage() {
-  const { health, healthStatus, lastChecked, checkHealth } = useAppStore();
+// ── Custom cursor ─────────────────────────────────────────────────────────────
+function CustomCursor() {
+  const cursorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    checkHealth();
-    const interval = setInterval(checkHealth, 30_000);
-    return () => clearInterval(interval);
-  }, [checkHealth]);
+    const el = cursorRef.current;
+    if (!el) return;
 
-  const isLoading = healthStatus === "idle" || healthStatus === "loading";
+    let raf = 0;
+    let cx = -100, cy = -100;
+
+    function onMove(e: MouseEvent) { cx = e.clientX; cy = e.clientY; }
+    function tick() {
+      el!.style.transform = `translate(${cx - 12}px, ${cy - 12}px)`;
+      raf = requestAnimationFrame(tick);
+    }
+    function onEnter() { el!.style.width = "48px"; el!.style.height = "48px"; el!.style.marginLeft = "-12px"; el!.style.marginTop = "-12px"; }
+    function onLeave() { el!.style.width = "24px"; el!.style.height = "24px"; el!.style.marginLeft = "0"; el!.style.marginTop = "0"; }
+
+    document.addEventListener("mousemove", onMove);
+    raf = requestAnimationFrame(tick);
+    const links = document.querySelectorAll("a, button");
+    links.forEach((n) => { n.addEventListener("mouseenter", onEnter); n.addEventListener("mouseleave", onLeave); });
+
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      cancelAnimationFrame(raf);
+      links.forEach((n) => { n.removeEventListener("mouseenter", onEnter); n.removeEventListener("mouseleave", onLeave); });
+    };
+  }, []);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-8 px-4 py-16">
+    <div
+      ref={cursorRef}
+      aria-hidden="true"
+      className="pointer-events-none fixed left-0 top-0 z-[9999] h-6 w-6 rounded-full mix-blend-difference"
+      style={{ background: "white", transition: "width 0.15s ease, height 0.15s ease" }}
+    />
+  );
+}
+
+// ── Fade-up wrapper ───────────────────────────────────────────────────────────
+function FadeSection({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Visible by default for reduced motion / no JS
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (mq.matches) return;
+
+    el.style.opacity = "0";
+    el.style.transform = "translateY(28px)";
+
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.style.transition = "opacity 0.75s ease, transform 0.75s ease";
+          el.style.opacity = "1";
+          el.style.transform = "translateY(0)";
+          obs.disconnect();
+        }
+      },
+      { threshold: 0.12 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  return <section ref={ref as React.RefObject<HTMLElement>} className={className}>{children}</section>;
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function Nav() {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    function onScroll() { setScrolled(window.scrollY > 40); }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  return (
+    <header
+      className="fixed left-0 right-0 top-0 z-50 flex h-16 items-center justify-between px-8 transition-all duration-300"
+      style={{
+        backdropFilter: scrolled ? "blur(16px)" : "none",
+        background: scrolled ? "rgba(10,10,10,0.75)" : "transparent",
+        borderBottom: scrolled ? "1px solid rgba(255,255,255,0.06)" : "none",
+      }}
+    >
+      <span className="font-label text-[13px] font-semibold uppercase tracking-[0.2em] text-white">
+        ECHOROOM
+      </span>
+      <div className="flex items-center gap-3">
+        <Link
+          href="/login"
+          className="flex h-9 items-center rounded-lg border border-white/20 px-5 font-label text-[13px] font-medium uppercase tracking-wide text-white/80 transition-colors hover:border-white/40 hover:text-white"
+        >
+          Log In
+        </Link>
+        <Link
+          href="/register"
+          className="flex h-9 items-center rounded-lg px-5 font-label text-[13px] font-medium uppercase tracking-wide text-black transition-opacity hover:opacity-80"
+          style={{ background: "white" }}
+        >
+          Sign Up
+        </Link>
+      </div>
+    </header>
+  );
+}
+
+// ── System status ─────────────────────────────────────────────────────────────
+function StatusDot() {
+  const [healthy, setHealthy] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    getHealth()
+      .then((h) => setHealthy(h.status === "healthy"))
+      .catch(() => setHealthy(false));
+  }, []);
+
+  const color = healthy === null ? "#555" : healthy ? "#4ade80" : "#ef4444";
+  const label = healthy === null ? "Checking…" : healthy ? "Systems Operational" : "Degraded";
+
+  return (
+    <div className="mt-5 flex items-center justify-center gap-2 font-label text-[11px] uppercase tracking-[0.2em] text-white/35">
+      <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+      {label}
+    </div>
+  );
+}
+
+// ── Room data ─────────────────────────────────────────────────────────────────
+const ROOMS = [
+  { code: "01", title: "Technical", sub: "The Grid", desc: "Whiteboard precision. Engineered delivery for technical audiences." },
+  { code: "02", title: "Interview", sub: "The Focus", desc: "Composed and evaluative. The silence between questions matters." },
+  { code: "03", title: "Presentation", sub: "The Stage", desc: "Scale and authority. Perform at size without losing the room." },
+  { code: "04", title: "General", sub: "The Flow", desc: "Human conversation. Warm, unguarded, fully present." },
+];
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+export default function LandingPage() {
+  return (
+    <div style={{ background: "#0a0a0a", cursor: "none" }}>
+      <CustomCursor />
+      <Nav />
+
       {/* Hero */}
-      <div className="text-center">
-        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-brand-500/30 bg-brand-500/10 px-4 py-1.5 text-xs text-brand-500">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" />
-          Agentic Communication Intelligence
+      <section className="relative flex h-screen flex-col items-center justify-center overflow-hidden">
+        <div className="pointer-events-none absolute inset-0">
+          <SphereScene />
         </div>
-        <h1 className="mb-3 text-5xl font-bold tracking-tight text-white">
-          Echo<span className="text-brand-500">Room</span>
-        </h1>
-        <p className="max-w-md text-gray-400">
-          Real-time multi-agent speech analysis. Practice, get feedback, improve.
+
+        <div className="relative z-10 px-6 text-center">
+          <p className="font-label text-[11px] uppercase tracking-[0.25em] text-white/35">
+            Communication Intelligence
+          </p>
+          <h1
+            className="mt-4 font-display font-black leading-none tracking-tight"
+            style={{ fontSize: "clamp(52px, 10vw, 120px)" }}
+          >
+            <span className="block text-white">PRACTICE</span>
+            <span
+              className="block"
+              style={{ WebkitTextStroke: "1px rgba(255,255,255,0.55)", color: "transparent" }}
+            >
+              FOR THE
+            </span>
+            <span className="block text-white">MOMENT.</span>
+          </h1>
+
+          <p className="mx-auto mt-8 max-w-[460px] font-sans text-[16px] leading-[1.8] text-white/45">
+            A private flight simulator for your communication. Real-time AI coaching
+            for technical presentations, interviews, and high-stakes conversations.
+          </p>
+
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+            <Link
+              href="/register"
+              className="flex h-11 items-center rounded-lg px-7 font-label text-[13px] font-semibold uppercase tracking-wide text-black transition-opacity hover:opacity-85"
+              style={{ background: "white" }}
+            >
+              Start Practicing
+            </Link>
+            <Link
+              href="/login"
+              className="flex h-11 items-center rounded-lg border border-white/20 px-7 font-label text-[13px] font-semibold uppercase tracking-wide text-white/65 transition-colors hover:border-white/40 hover:text-white"
+            >
+              Sign In →
+            </Link>
+          </div>
+
+          <StatusDot />
+        </div>
+
+        <div className="absolute bottom-10 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1 animate-bounce">
+          <div className="h-10 w-px bg-gradient-to-b from-white/25 to-transparent" />
+        </div>
+      </section>
+
+      {/* Philosophy */}
+      <FadeSection className="mx-auto max-w-[820px] px-8 py-28 text-center">
+        <p className="font-label text-[11px] uppercase tracking-[0.25em] text-white/30">
+          Why It Works
         </p>
-      </div>
+        <h2
+          className="mt-6 font-display font-bold text-white"
+          style={{ fontSize: "clamp(30px, 4vw, 50px)", lineHeight: 1.18 }}
+        >
+          The gap between knowing and performing
+          <br />
+          <span style={{ WebkitTextStroke: "1px rgba(255,255,255,0.4)", color: "transparent" }}>
+            closes through repetition.
+          </span>
+        </h2>
+        <p className="mx-auto mt-8 max-w-[560px] font-sans text-[16px] leading-[1.8] text-white/45">
+          EchoRoom replicates the psychological pressure of real contexts so your
+          nervous system can practice the response — not just your mind.
+        </p>
+      </FadeSection>
 
-      {/* Start Session */}
-      <StartSessionPanel />
+      {/* Contextual Realities */}
+      <FadeSection className="mx-auto max-w-[1100px] px-8 pb-28">
+        <p className="font-label text-[11px] uppercase tracking-[0.25em] text-white/30">Four Contexts</p>
+        <h2
+          className="mt-3 font-display font-bold text-white"
+          style={{ fontSize: "clamp(26px, 3.5vw, 42px)" }}
+        >
+          Contextual Realities
+        </h2>
 
-      {/* System Status */}
-      <div className="w-full max-w-sm rounded-2xl border border-gray-800 bg-gray-900/50 p-6 shadow-xl backdrop-blur-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
-            System Status
+        <div className="mt-10 grid grid-cols-1 gap-px bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
+          {ROOMS.map((room) => (
+            <div key={room.code} className="group bg-[#0a0a0a] p-8 transition-colors hover:bg-[#111]">
+              <span className="font-label text-[11px] font-medium uppercase tracking-widest text-white/25">
+                {room.code}
+              </span>
+              <p className="mt-4 font-display text-[22px] font-bold text-white">{room.title}</p>
+              <p className="font-label text-[12px] uppercase tracking-wide text-white/35">{room.sub}</p>
+              <p className="mt-4 font-sans text-[14px] leading-[1.75] text-white/45">{room.desc}</p>
+              <div className="mt-6 h-px w-8 bg-white/20 transition-all duration-500 group-hover:w-full" />
+            </div>
+          ))}
+        </div>
+      </FadeSection>
+
+      {/* Insight Engine */}
+      <FadeSection className="border-t border-white/[0.06]">
+        <div className="mx-auto max-w-[1100px] px-8 py-28">
+          <div className="grid grid-cols-1 gap-16 lg:grid-cols-2 lg:items-center">
+            <div>
+              <p className="font-label text-[11px] uppercase tracking-[0.25em] text-white/30">
+                After Every Session
+              </p>
+              <h2
+                className="mt-4 font-display font-bold text-white"
+                style={{ fontSize: "clamp(28px, 3.5vw, 44px)", lineHeight: 1.2 }}
+              >
+                The Insight Engine
+                <br />
+                <span style={{ WebkitTextStroke: "1px rgba(255,255,255,0.4)", color: "transparent" }}>
+                  finds the signal.
+                </span>
+              </h2>
+              <p className="mt-6 font-sans text-[16px] leading-[1.8] text-white/45">
+                Every session generates a full coaching report — engagement arc, filler word
+                frequency, pacing analysis, and AI-rewritten versions of your weakest moments.
+              </p>
+              <Link
+                href="/register"
+                className="mt-8 inline-flex h-11 items-center rounded-lg border border-white/20 px-6 font-label text-[13px] font-semibold uppercase tracking-wide text-white/65 transition-colors hover:border-white/40 hover:text-white"
+              >
+                See a Sample Report →
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 gap-px bg-white/10">
+              {[
+                { label: "Overall Score", value: "88", unit: "/100" },
+                { label: "Words / Min", value: "142", unit: "wpm" },
+                { label: "Engagement", value: "91", unit: "%" },
+                { label: "Filler Words", value: "3", unit: "detected" },
+              ].map((m) => (
+                <div key={m.label} className="bg-[#0a0a0a] p-8">
+                  <p className="font-label text-[11px] uppercase tracking-widest text-white/30">{m.label}</p>
+                  <p className="mt-3 font-display text-[40px] font-bold leading-none text-white">
+                    {m.value}
+                    <span className="font-sans text-[16px] font-normal text-white/35"> {m.unit}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </FadeSection>
+
+      {/* Footer CTA */}
+      <FadeSection className="border-t border-white/[0.06]">
+        <div className="mx-auto max-w-[720px] px-8 py-28 text-center">
+          <h2
+            className="font-display font-bold text-white"
+            style={{ fontSize: "clamp(34px, 5vw, 60px)", lineHeight: 1.12 }}
+          >
+            The moment is coming.
+            <br />
+            <span style={{ WebkitTextStroke: "1px rgba(255,255,255,0.45)", color: "transparent" }}>
+              Practice is now.
+            </span>
           </h2>
-          {isLoading ? (
-            <span className="animate-pulse text-xs text-gray-500">checking…</span>
-          ) : (
-            <StatusBadge status={health?.status} />
-          )}
+          <Link
+            href="/register"
+            className="mt-10 inline-flex h-12 items-center rounded-lg px-8 font-label text-[13px] font-semibold uppercase tracking-wide text-black transition-opacity hover:opacity-85"
+            style={{ background: "white" }}
+          >
+            Start Your First Session
+          </Link>
         </div>
+      </FadeSection>
 
-        <div className="space-y-2">
-          <ServiceRow
-            name="API"
-            status={isLoading ? "loading" : healthStatus === "error" ? "unhealthy" : "healthy"}
-          />
-          <ServiceRow
-            name="PostgreSQL"
-            status={isLoading ? "loading" : (health?.services?.database?.status ?? "unknown")}
-          />
-          <ServiceRow
-            name="Redis"
-            status={isLoading ? "loading" : (health?.services?.redis?.status ?? "unknown")}
-          />
+      {/* Footer */}
+      <footer className="border-t border-white/[0.06] px-8 py-8">
+        <div className="mx-auto flex max-w-[1100px] flex-col items-center justify-between gap-3 font-label text-[12px] uppercase tracking-widest text-white/25 sm:flex-row">
+          <span>© 2025 EchoRoom Systems.</span>
+          <div className="flex gap-6">
+            <Link href="#" className="transition-colors hover:text-white/50">Privacy</Link>
+            <Link href="#" className="transition-colors hover:text-white/50">Terms</Link>
+            <Link href="#" className="transition-colors hover:text-white/50">Security</Link>
+          </div>
         </div>
-
-        {lastChecked && (
-          <p className="mt-4 text-center text-xs text-gray-600">
-            Last checked {lastChecked.toLocaleTimeString()}
-          </p>
-        )}
-        {health && (
-          <p className="mt-1 text-center text-xs text-gray-700">
-            {health.latency_ms}ms · v{health.version} · {health.environment}
-          </p>
-        )}
-      </div>
-    </main>
+      </footer>
+    </div>
   );
 }
