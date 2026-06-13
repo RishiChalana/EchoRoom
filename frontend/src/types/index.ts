@@ -31,12 +31,19 @@ export interface FullHealthResponse extends HealthResponse {
 // ── Session ───────────────────────────────────────────────────────────────────
 
 export type SessionStatus = "active" | "processing" | "complete" | "failed";
-export type AudienceProfile = "general" | "technical" | "executive" | "students";
+export type AudienceProfile = "general" | "technical" | "interview" | "presentation";
+
+export interface OAuthUser {
+  name: string;
+  email: string;
+  image?: string;
+}
 
 export interface Session {
   id: string;
   status: SessionStatus;
   audience_profile: AudienceProfile | string;
+  name?: string | null;
   duration_seconds: number | null;
   overall_score: number | null;
   created_at: string;
@@ -71,9 +78,13 @@ export interface EngagementTimelinePoint {
 export interface SessionReport {
   id: string;
   session_id: string;
+  /** 0–100 integer (normalised by backend before response) */
   overall_score: number | null;
+  /** 0–100 integer */
   engagement_avg: number | null;
+  /** 0–100 integer */
   clarity_avg: number | null;
+  wpm?: number | null;
   insights: CoachInsight[];
   rewrites: RewriteSuggestion[];
   summary: string | null;

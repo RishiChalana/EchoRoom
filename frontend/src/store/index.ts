@@ -34,7 +34,7 @@ interface SessionSlice {
   clarityAvg: number | null;
   latestTranscript: string | null;
   transcriptHistory: TranscriptChunk[];
-  createSession: (audienceProfile: string) => Promise<Session>;
+  createSession: (audienceProfile: string, name?: string) => Promise<Session>;
   loadSession: (sessionId: string) => Promise<Session>;
   endSession: (sessionId: string) => Promise<void>;
   updateFromStateEvent: (update: SessionStateUpdate) => void;
@@ -78,12 +78,12 @@ export const useAppStore = create<AppStore>()(
       latestTranscript: null,
       transcriptHistory: [],
 
-      createSession: async (audienceProfile: string) => {
+      createSession: async (audienceProfile: string, name?: string) => {
         set({ sessionStatus: "loading" });
         try {
           const session = await apiFetch<Session>("/api/v1/sessions", {
             method: "POST",
-            body: JSON.stringify({ audience_profile: audienceProfile }),
+            body: JSON.stringify({ audience_profile: audienceProfile, name: name ?? null }),
           });
           set({ session, sessionStatus: "active" });
           return session;

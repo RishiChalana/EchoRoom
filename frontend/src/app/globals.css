@@ -3,16 +3,116 @@
 @tailwind utilities;
 
 :root {
-  --background: #030712;
-  --foreground: #f9fafb;
+  /* Surface scale */
+  --er-bg:           #f8f9fa;
+  --er-surface:      #ffffff;
+  --er-surface-2:    #f3f4f5;
+  --er-surface-3:    #edeeef;
+  --er-surface-4:    #e7e8e9;
+
+  /* Text */
+  --er-ink:          #191c1d;
+  --er-ink-2:        #45474a;
+  --er-ink-3:        #76777b;
+  --er-ink-4:        #c6c6ca;
+
+  /* Borders */
+  --er-border:       #e1e3e4;
+  --er-border-2:     #c6c6ca;
+
+  /* Brand */
+  --er-blue:         #004fda;
+  --er-blue-2:       #2b69fd;
+  --er-blue-dim:     rgba(0, 79, 218, 0.08);
+  --er-blue-text:    #0040b0;
+
+  /* Functional */
+  --er-amber:        #e67e22;
+  --er-red:          #ba1a1a;
+  --er-green:        #2d6a4f;
+
+  /* Session dark (live session page only) */
+  --er-dark-bg:      #0a0a0a;
+  --er-dark-surface: #161616;
+  --er-dark-ink:     #f0f0f0;
+  --er-dark-ink-2:   #888888;
+  --er-dark-border:  #2a2a2a;
+  --er-dark-blue:    #4a7fff;
 }
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--er-bg);
+  color: var(--er-ink);
+  font-family: var(--font-inter, 'Inter', system-ui, sans-serif);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Smooth scrolling */
-html {
-  scroll-behavior: smooth;
+/* Typography utilities */
+.font-display { font-family: var(--font-hanken, 'Hanken Grotesk', system-ui, sans-serif); }
+.font-mono    { font-family: var(--font-geist-mono, 'Geist Mono', monospace); }
+.font-label   { font-family: var(--font-geist, 'Geist', system-ui, sans-serif); }
+
+/* Prevent orphans */
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+
+/* Focus ring — accessible, on-brand */
+:focus-visible {
+  outline: 2px solid var(--er-blue);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Transcript gradient mask (session dark page) */
+.transcript-mask {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    black 80px,
+    black calc(100% - 40px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    black 80px,
+    black calc(100% - 40px),
+    transparent 100%
+  );
+}
+
+/* Recording pulse animation */
+@keyframes rec-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1; }
+}
+
+.animate-rec-pulse {
+  animation: rec-pulse 2s ease-in-out infinite;
+}
+
+/* Progress bar shimmer (report loading state) */
+@keyframes progress-fill {
+  0%   { width: 0%; }
+  60%  { width: 80%; }
+  100% { width: 100%; }
+}
+
+.animate-progress-fill {
+  animation: progress-fill 4s ease-in-out forwards;
 }

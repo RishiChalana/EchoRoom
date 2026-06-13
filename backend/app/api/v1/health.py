@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import time
 import asyncio
+from typing import Any, Optional
 from fastapi import APIRouter, Response, status
 import structlog
 
 from app.core.config import settings
 from app.core.database import check_db_health
-from app.core.redis import check_redis_health
+from app.core.redis import check_redis_health, get_redis_client
 from app.schemas.health import HealthResponse, ServiceStatus, FullHealthResponse
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -73,3 +74,19 @@ async def full_health(response: Response) -> FullHealthResponse:
         },
         latency_ms=latency_ms,
     )
+
+
+@router.get(
+    "/workers",
+    summary="Celery worker queue diagnostics",
+    description="Returns coach queue depth and last processed session from Redis.",
+)
+async def workers_health() -> dict[str, Any]:
+    try:
+        client = get_redis_client()
+        depth: int = await client.llen("coach")
+        last_session_id: Optional[str] = await client.get("coach:last_session_id")
+        return {"coach_queue_depth": depth, "last_session_id": last_session_id}
+    except Exception as exc:
+        log.warning("Workers health check failed", error=str(exc))
+        return {"coach_queue_depth": -1, "last_session_id": None}
