@@ -74,3 +74,4 @@ eval/datasets/annotations/
 *.key
 *.cert
 service_account.json
+.claude/

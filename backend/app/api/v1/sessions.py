@@ -25,6 +25,7 @@ async def create_session(
     session = Session(
         status="active",
         audience_profile=body.audience_profile,
+        name=body.name,
         report_ready=False,
     )
     db.add(session)

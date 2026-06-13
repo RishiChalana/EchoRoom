@@ -84,6 +84,13 @@ async def get_report(
         log.info("Report retrieved", session_id=str(session_id))
         response = SessionReportResponse.model_validate(report)
         response.engagement_timeline = await _build_engagement_timeline(db, session_id)
+        # Scores normalised to 0-100 for display; stored as 0-10 / 0-1
+        if response.overall_score is not None:
+            response.overall_score = round(response.overall_score * 10)
+        if response.engagement_avg is not None:
+            response.engagement_avg = round(response.engagement_avg * 100)
+        if response.clarity_avg is not None:
+            response.clarity_avg = round(response.clarity_avg * 100)
         return response
 
     # 3) No report yet. While processing — or complete-without-report, which

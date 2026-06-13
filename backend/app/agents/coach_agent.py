@@ -53,6 +53,7 @@ class CoachState(TypedDict):
     engagement_avg: Optional[float]
     clarity_avg: Optional[float]
     clarity_issues: List[dict]
+    wpm: Optional[int]
 
 
 class CoachAgent:
@@ -94,6 +95,12 @@ class CoachAgent:
             )
             events = result.scalars().all()
 
+            session_result = db.execute(
+                select(Session).where(Session.id == state["session_id"])
+            )
+            session_row = session_result.scalar_one_or_none()
+            duration_seconds = session_row.duration_seconds if session_row else None
+
         serialized = [
             {
                 "event_id": str(e.event_id),
@@ -123,6 +130,17 @@ class CoachAgent:
             analyze_transcript_clarity, state["session_id"], full_text
         )
 
+        total_words = sum(
+            len(str(e.payload.get("text", "")).split())
+            for e in events
+            if e.agent_name == "transcript" and e.payload.get("text")
+        )
+        wpm = (
+            round((total_words / duration_seconds) * 60)
+            if duration_seconds and duration_seconds > 0
+            else None
+        )
+
         return {
             **state,
             "events": serialized,
@@ -133,6 +151,7 @@ class CoachAgent:
             ),
             "clarity_avg": clarity_result.get("score"),
             "clarity_issues": clarity_result.get("issues", []),
+            "wpm": wpm,
         }
 
     async def _segment_analyzer_node(self, state: CoachState) -> CoachState:
@@ -378,6 +397,7 @@ class CoachAgent:
                     rewrites=rewrites_data,
                     summary=summary,
                     coach_model="gemini-2.5-flash",
+                    wpm=state.get("wpm"),
                 )
                 db.add(report)
 
@@ -416,6 +436,7 @@ class CoachAgent:
             "engagement_avg": None,
             "clarity_avg": None,
             "clarity_issues": [],
+            "wpm": None,
         }
         try:
             result = await self._graph.ainvoke(initial_state)

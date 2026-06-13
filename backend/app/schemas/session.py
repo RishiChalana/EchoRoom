@@ -7,17 +7,21 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel
 
 
-class CreateSessionRequest(BaseModel):
-    audience_profile: str = "general"
-
+AudienceProfile = Literal["general", "technical", "interview", "presentation"]
 
 SessionStatus = Literal["active", "processing", "complete", "failed"]
+
+
+class CreateSessionRequest(BaseModel):
+    audience_profile: AudienceProfile = "general"
+    name: Optional[str] = None
 
 
 class SessionResponse(BaseModel):
     id: uuid.UUID
     status: SessionStatus
     audience_profile: str
+    name: Optional[str] = None
     duration_seconds: Optional[int] = None
     overall_score: Optional[float] = None
     created_at: datetime
@@ -40,9 +44,9 @@ class EngagementTimelinePoint(BaseModel):
 class SessionReportResponse(BaseModel):
     id: uuid.UUID
     session_id: uuid.UUID
-    overall_score: Optional[float] = None
-    engagement_avg: Optional[float] = None
-    clarity_avg: Optional[float] = None
+    overall_score: Optional[int] = None
+    engagement_avg: Optional[int] = None
+    clarity_avg: Optional[int] = None
     insights: List = []
     rewrites: List = []
     summary: Optional[str] = None
@@ -50,6 +54,7 @@ class SessionReportResponse(BaseModel):
     created_at: datetime
     # Computed read-side at GET time from agent_events; defaults empty so older
     # reports (and the ORM row, which has no such column) still deserialize.
+    wpm: Optional[int] = None
     engagement_timeline: List[EngagementTimelinePoint] = []
 
     model_config = {"from_attributes": True}
