@@ -58,6 +58,15 @@ else
     echo "⏭️  Skipping migrations (RUN_MIGRATIONS=false — api owns migrations)"
 fi
 
+# ── Production readiness guard ────────────────────────────────────────────────
+if [ "${ENVIRONMENT:-development}" = "production" ]; then
+    _SECRET="${SECRET_KEY:-}"
+    if [ -z "$_SECRET" ] || [ "$_SECRET" = "change-me-in-production-use-openssl-rand-hex-32" ]; then
+        echo "⚠️  WARNING: SECRET_KEY is not set or is the default placeholder."
+        echo "   Set SECRET_KEY to the output of: openssl rand -hex 32"
+    fi
+fi
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Starting server..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
