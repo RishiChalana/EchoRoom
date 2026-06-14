@@ -100,8 +100,8 @@ function Nav() {
         borderBottom: scrolled ? "1px solid rgba(255,255,255,0.06)" : "none",
       }}
     >
-      <span className="font-label text-[13px] font-semibold uppercase tracking-[0.2em] text-white">
-        ECHOROOM
+      <span className="font-display text-[18px] font-semibold tracking-tight text-white">
+        EchoRoom
       </span>
       <div className="flex items-center gap-3">
         <Link
@@ -132,12 +132,20 @@ function StatusDot() {
       .catch(() => setHealthy(false));
   }, []);
 
-  const color = healthy === null ? "#555" : healthy ? "#4ade80" : "#ef4444";
-  const label = healthy === null ? "Checking…" : healthy ? "Systems Operational" : "Degraded";
+  const dotColor = healthy === true ? "#4ade80" : "#555";
+  const label =
+    healthy === null
+      ? "Checking system status…"
+      : healthy
+      ? "System Status: Online & Ready"
+      : "System Status: Degraded";
 
   return (
-    <div className="mt-5 flex items-center justify-center gap-2 font-label text-[11px] uppercase tracking-[0.2em] text-white/35">
-      <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+    <div className="flex items-center justify-center gap-2 font-sans" style={{ fontSize: "12px", color: "#555555" }}>
+      <span
+        className="inline-block flex-shrink-0 rounded-full"
+        style={{ width: "6px", height: "6px", background: dotColor }}
+      />
       {label}
     </div>
   );
@@ -202,8 +210,6 @@ export default function LandingPage() {
               Sign In →
             </Link>
           </div>
-
-          <StatusDot />
         </div>
 
         <div className="absolute bottom-10 left-1/2 flex -translate-x-1/2 flex-col items-center gap-1 animate-bounce">
@@ -332,12 +338,15 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-white/[0.06] px-8 py-8">
-        <div className="mx-auto flex max-w-[1100px] flex-col items-center justify-between gap-3 font-label text-[12px] uppercase tracking-widest text-white/25 sm:flex-row">
-          <span>© 2025 EchoRoom Systems.</span>
-          <div className="flex gap-6">
-            <Link href="#" className="transition-colors hover:text-white/50">Privacy</Link>
-            <Link href="#" className="transition-colors hover:text-white/50">Terms</Link>
-            <Link href="#" className="transition-colors hover:text-white/50">Security</Link>
+        <div className="mx-auto flex max-w-[1100px] flex-col items-center gap-4">
+          <StatusDot />
+          <div className="flex w-full flex-col items-center justify-between gap-3 font-label text-[12px] uppercase tracking-widest text-white/25 sm:flex-row">
+            <span>© 2025 EchoRoom Systems.</span>
+            <div className="flex gap-6">
+              <Link href="#" className="transition-colors hover:text-white/50">Privacy</Link>
+              <Link href="#" className="transition-colors hover:text-white/50">Terms</Link>
+              <Link href="#" className="transition-colors hover:text-white/50">Security</Link>
+            </div>
           </div>
         </div>
       </footer>
