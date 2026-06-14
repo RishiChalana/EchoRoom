@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { AuthedLayout } from "@/components/layout/AuthedLayout";
+import { useTheme } from "@/components/layout/ThemeProvider";
 import { getSessions } from "@/lib/api";
 import type { Session } from "@/types";
 
@@ -41,6 +42,7 @@ function roomLabel(profile: string): string {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { theme } = useTheme();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -77,6 +79,11 @@ export default function DashboardPage() {
   const personalInsight = hasSessions
     ? `Your ${roomLabel(mostRecentRoom ?? "")} sessions show a consistent trend.`
     : "Ready to start? Your first session is waiting.";
+
+  const isDark = theme === "dark";
+  const axisColor  = isDark ? "#666670" : "#76777b";
+  const barFill    = isDark ? "#333338" : "#e1e3e4";
+  const lineStroke = isDark ? "#5b8fff" : "#004fda";
 
   return (
     <AuthedLayout>
@@ -124,17 +131,17 @@ export default function DashboardPage() {
                     <ComposedChart data={weeks} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
                       <XAxis
                         dataKey="week"
-                        tick={{ fontSize: 12, fill: "#76777b", fontFamily: "var(--font-geist-mono)" }}
+                        tick={{ fontSize: 12, fill: axisColor, fontFamily: "var(--font-geist-mono)" }}
                         axisLine={false}
                         tickLine={false}
                       />
-                      <Bar dataKey="count" fill="#e1e3e4" radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="count" fill={barFill} radius={[2, 2, 0, 0]} />
                       <Line
                         type="monotone"
                         dataKey="score"
-                        stroke="#004fda"
+                        stroke={lineStroke}
                         strokeWidth={2}
-                        dot={{ r: 3, fill: "#004fda" }}
+                        dot={{ r: 3, fill: lineStroke }}
                       />
                     </ComposedChart>
                   </ResponsiveContainer>

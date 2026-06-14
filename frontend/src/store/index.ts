@@ -158,6 +158,7 @@ export const useAppStore = create<AppStore>()(
           // Raw fetch (not apiFetch) so we can read the 202 "generating" status.
           const res = await fetch(`${API_URL}/api/v1/reports/${sessionId}`, {
             headers: { "Content-Type": "application/json" },
+            credentials: "include",
           });
 
           if (res.status === 202) {

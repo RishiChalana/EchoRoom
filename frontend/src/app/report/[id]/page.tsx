@@ -10,9 +10,13 @@ import {
   BarChart,
   Bar,
   XAxis,
+  CartesianGrid,
+  Tooltip,
+  Cell,
   ResponsiveContainer,
 } from "recharts";
 import { useAppStore } from "@/store";
+import { useTheme } from "@/components/layout/ThemeProvider";
 import { cn } from "@/lib/utils";
 import type { CoachInsight } from "@/types";
 
@@ -113,6 +117,7 @@ function PollingState() {
 export default function ReportPage({ params }: PageProps) {
   const router = useRouter();
   const { report, fetchReport } = useAppStore();
+  const { theme } = useTheme();
   const [phase, setPhase] = useState<Phase>("polling");
   const [retryKey, setRetryKey] = useState(0);
 
@@ -122,6 +127,7 @@ export default function ReportPage({ params }: PageProps) {
     let count = 0;
 
     const poll = async () => {
+      console.log("[EchoRoom] Polling report for session:", params.id, `(attempt ${count + 1}/${MAX_ATTEMPTS})`);
       const result = await fetchReport(params.id);
       if (cancelled) return;
       count += 1;
@@ -143,28 +149,50 @@ export default function ReportPage({ params }: PageProps) {
 
   if (phase === "notfound") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-er-bg px-4">
-        <p className="font-sans text-[16px] text-er-ink-2">Report not available.</p>
-        <button
-          onClick={() => router.push("/")}
-          className="rounded-lg bg-er-ink px-5 py-2.5 font-sans text-[14px] font-medium text-white"
-        >
-          Back Home
-        </button>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-er-bg px-4 text-center">
+        <p className="font-display text-[20px] font-semibold text-er-ink">Report unavailable.</p>
+        <p className="max-w-[360px] font-sans text-[15px] text-er-ink-3">
+          The session may have been too short to generate a report.
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setRetryKey((k) => k + 1)}
+            className="rounded-lg border border-er-border px-5 py-2.5 font-sans text-[14px] font-medium text-er-ink transition-colors hover:bg-er-surface-2"
+          >
+            Retry
+          </button>
+          <button
+            onClick={() => router.push("/rooms")}
+            className="rounded-lg bg-er-ink px-5 py-2.5 font-sans text-[14px] font-medium text-white"
+          >
+            New Session
+          </button>
+        </div>
       </div>
     );
   }
 
   if (phase === "gaveup" || !report) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-er-bg px-4">
-        <p className="font-sans text-[16px] text-er-ink-2">This is taking longer than expected.</p>
-        <button
-          onClick={() => setRetryKey((k) => k + 1)}
-          className="rounded-lg bg-er-ink px-5 py-2.5 font-sans text-[14px] font-medium text-white"
-        >
-          Retry
-        </button>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-er-bg px-4 text-center">
+        <p className="font-display text-[20px] font-semibold text-er-ink">Report unavailable.</p>
+        <p className="max-w-[360px] font-sans text-[15px] text-er-ink-3">
+          The session may have been too short to generate a report.
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setRetryKey((k) => k + 1)}
+            className="rounded-lg border border-er-border px-5 py-2.5 font-sans text-[14px] font-medium text-er-ink transition-colors hover:bg-er-surface-2"
+          >
+            Retry
+          </button>
+          <button
+            onClick={() => router.push("/rooms")}
+            className="rounded-lg bg-er-ink px-5 py-2.5 font-sans text-[14px] font-medium text-white"
+          >
+            New Session
+          </button>
+        </div>
       </div>
     );
   }
@@ -205,6 +233,15 @@ export default function ReportPage({ params }: PageProps) {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const isDark = theme === "dark";
+  const axisColor  = isDark ? "#666670" : "#76777b";
+  const gridColor  = isDark ? "#2a2a32" : "#e1e3e4";
+  const tooltipBg  = isDark ? "#1a1a1e" : "#ffffff";
+  const tooltipBorder = isDark ? "#2a2a32" : "#e1e3e4";
+  const tooltipText   = isDark ? "#f0f0f2" : "#191c1d";
+  const barOptimal = isDark ? "#e8e8ee" : "#191c1d";
+  const barRushed  = isDark ? "#5b8fff" : "#004fda";
 
   const chartData = report.engagement_timeline.map((p, i) => ({
     index: i,
@@ -319,9 +356,10 @@ export default function ReportPage({ params }: PageProps) {
             <div className="mt-4">
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={chartData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                  <CartesianGrid vertical={false} stroke={gridColor} strokeOpacity={0.5} />
                   <XAxis
                     dataKey="index"
-                    tick={{ fontSize: 12, fill: "#76777b", fontFamily: "var(--font-geist)" }}
+                    tick={{ fontSize: 12, fill: axisColor, fontFamily: "var(--font-geist)" }}
                     tickFormatter={(v: number) => {
                       if (v === 0) return "00:00";
                       if (v === Math.floor(chartData.length / 2))
@@ -329,17 +367,25 @@ export default function ReportPage({ params }: PageProps) {
                       if (v === chartData.length - 1) return "End";
                       return "";
                     }}
-                    axisLine={false}
+                    axisLine={{ stroke: gridColor }}
                     tickLine={false}
                   />
-                  <Bar
-                    dataKey="value"
-                    radius={[2, 2, 0, 0]}
-                    fill="#191c1d"
-                    isAnimationActive={false}
-                    // Blue for accelerated bars
-                    label={false}
+                  <Tooltip
+                    contentStyle={{
+                      background: tooltipBg,
+                      border: `1px solid ${tooltipBorder}`,
+                      borderRadius: "4px",
+                      color: tooltipText,
+                      fontSize: "13px",
+                    }}
+                    formatter={(value: number) => [`${Math.round(value * 100)}%`, "Engagement"]}
+                    cursor={{ fill: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)" }}
                   />
+                  <Bar dataKey="value" radius={[2, 2, 0, 0]} isAnimationActive={false}>
+                    {chartData.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.value > 0.8 ? barRushed : barOptimal} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
               <div className="mt-2 flex gap-4">
@@ -422,7 +468,7 @@ export default function ReportPage({ params }: PageProps) {
                   <p className="py-1 text-center font-sans text-er-ink-3">↓</p>
 
                   {/* Improved */}
-                  <div className="px-4 py-4" style={{ borderLeft: "3px solid var(--er-blue)", background: "#fafbff" }}>
+                  <div className="px-4 py-4" style={{ borderLeft: "3px solid var(--er-blue)", background: isDark ? "var(--er-blue-dim)" : "#fafbff" }}>
                     <p className="font-sans text-[15px] text-er-ink">{rw.improved}</p>
                   </div>
 
