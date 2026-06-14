@@ -17,16 +17,19 @@ class CreateSessionRequest(BaseModel):
     name: Optional[str] = None
 
 
-class SessionResponse(BaseModel):
+class SessionReportResponse(BaseModel):
     id: uuid.UUID
-    status: SessionStatus
-    audience_profile: str
-    name: Optional[str] = None
-    duration_seconds: Optional[int] = None
+    session_id: uuid.UUID
     overall_score: Optional[float] = None
+    engagement_avg: Optional[float] = None
+    clarity_avg: Optional[float] = None
+    insights: List = []
+    rewrites: List = []
+    summary: Optional[str] = None
+    coach_model: Optional[str] = None
     created_at: datetime
-    ended_at: Optional[datetime] = None
-    report_ready: bool
+    wpm: Optional[int] = None
+    engagement_timeline: List[EngagementTimelinePoint] = []
 
     model_config = {"from_attributes": True}
 
