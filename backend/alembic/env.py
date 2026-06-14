@@ -25,8 +25,17 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Override the URL from app settings (supports env vars)
-config.set_main_option("sqlalchemy.url", settings.database_url_sync)
+# Override the URL from app settings — always use psycopg2 (sync) for Alembic.
+# The validator in config.py normalises Railway's postgres:// to
+# postgresql+asyncpg://, so we do an explicit multi-step conversion here to be
+# safe regardless of what form DATABASE_URL arrives in.
+sync_url = (
+    settings.DATABASE_URL
+    .replace("postgresql+asyncpg://", "postgresql+psycopg2://")
+    .replace("postgresql://", "postgresql+psycopg2://")
+    .replace("postgres://", "postgresql+psycopg2://")
+)
+config.set_main_option("sqlalchemy.url", sync_url)
 
 target_metadata = Base.metadata
 

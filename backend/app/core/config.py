@@ -80,10 +80,6 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
 
-    # ── NextAuth (consumed by backend JWT validation) ─────────────────────────
-    NEXTAUTH_SECRET: str = ""
-    NEXTAUTH_URL: str = "http://localhost:3000"
-
     # ── Properties ────────────────────────────────────────────────────────────
     @property
     def is_production(self) -> bool:
