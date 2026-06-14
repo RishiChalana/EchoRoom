@@ -89,4 +89,15 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  Starting server..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-exec "$@"
+if [ $# -gt 0 ]; then
+    # Custom command passed (Celery workers) — pass through directly
+    exec "$@"
+else
+    # No command — default API server with PORT expansion
+    exec gunicorn app.main:app \
+        -k uvicorn.workers.UvicornWorker \
+        --bind "0.0.0.0:${PORT:-8000}" \
+        --workers 2 \
+        --timeout 120 \
+        --log-level info
+fi

@@ -51,9 +51,3 @@ USER echoroom
 
 EXPOSE 8000
 ENTRYPOINT ["/entrypoint.sh"]
-CMD gunicorn app.main:app \
-    -k uvicorn.workers.UvicornWorker \
-    --bind "0.0.0.0:${PORT:-8000}" \
-    --workers 2 \
-    --timeout 120 \
-    --log-level info
