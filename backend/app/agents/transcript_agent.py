@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import os
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -14,28 +15,53 @@ from app.schemas.events import TranscriptChunk, WordToken
 
 log = structlog.get_logger(__name__)
 
+# Railway-safe Hugging Face cache
+os.environ.setdefault("HF_HOME", "/tmp/huggingface")
+os.environ.setdefault("HUGGINGFACE_HUB_CACHE", "/tmp/huggingface")
+os.environ.setdefault("TRANSFORMERS_CACHE", "/tmp/huggingface")
+
+Path("/tmp/huggingface").mkdir(parents=True, exist_ok=True)
+
 _model: Optional[object] = None
 
 
 def _get_model():
     global _model
-    if _model is None:
-        from faster_whisper import WhisperModel  # noqa: PLC0415
 
-        _model = WhisperModel("base", device="cpu", compute_type="int8")
+    if _model is None:
+        from faster_whisper import WhisperModel
+
+        _model = WhisperModel(
+            "base",
+            device="cpu",
+            compute_type="int8",
+            download_root="/tmp/huggingface",
+        )
+
     return _model
 
 
-def run_transcription(session_id: str, chunk_id: str, audio_b64: str) -> TranscriptChunk:
+def run_transcription(
+    session_id: str,
+    chunk_id: str,
+    audio_b64: str,
+) -> TranscriptChunk:
     model = _get_model()
     raw = base64.b64decode(audio_b64)
 
-    with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        suffix=".webm",
+        delete=False,
+    ) as f:
         f.write(raw)
         tmp_path = f.name
 
     try:
-        segments, info = model.transcribe(tmp_path, word_timestamps=True, vad_filter=True)
+        segments, info = model.transcribe(
+            tmp_path,
+            word_timestamps=True,
+            vad_filter=True,
+        )
 
         text_parts: list[str] = []
         words: list[WordToken] = []
@@ -46,10 +72,16 @@ def run_transcription(session_id: str, chunk_id: str, audio_b64: str) -> Transcr
             text_parts.append(segment.text.strip())
             avg_logprob = segment.avg_logprob
             no_speech_prob = segment.no_speech_prob
+
             if segment.words:
                 for w in segment.words:
                     words.append(
-                        WordToken(word=w.word, start=w.start, end=w.end, probability=w.probability)
+                        WordToken(
+                            word=w.word,
+                            start=w.start,
+                            end=w.end,
+                            probability=w.probability,
+                        )
                     )
 
         chunk = TranscriptChunk(
@@ -61,12 +93,17 @@ def run_transcription(session_id: str, chunk_id: str, audio_b64: str) -> Transcr
             avg_logprob=avg_logprob,
             no_speech_prob=no_speech_prob,
         )
+
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
     r = redis.from_url(settings.REDIS_URL)
+
     try:
-        r.publish(f"transcript:{session_id}", chunk.model_dump_json())
+        r.publish(
+            f"transcript:{session_id}",
+            chunk.model_dump_json(),
+        )
     finally:
         r.close()
 
@@ -82,5 +119,11 @@ def run_transcription(session_id: str, chunk_id: str, audio_b64: str) -> Transcr
         },
     )
 
-    log.info("Transcript published", session_id=session_id, chunk_id=chunk_id, text_len=len(chunk.text))
+    log.info(
+        "Transcript published",
+        session_id=session_id,
+        chunk_id=chunk_id,
+        text_len=len(chunk.text),
+    )
+
     return chunk
