@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Inter, Hanken_Grotesk } from "next/font/google";
 import localFont from "next/font/local";
 import { Providers } from "@/components/layout/Providers";
+import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -60,7 +61,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={`${inter.variable} ${hankenGrotesk.variable} ${geist.variable} ${geistMono.variable}`}
     >
       <body className="bg-er-bg text-er-ink antialiased min-h-screen font-sans">
-        <Providers>{children}</Providers>
+        <ThemeProvider>
+          <Providers>{children}</Providers>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -4,6 +4,7 @@ import asyncio
 import base64
 import time
 import uuid
+from typing import Optional
 from uuid import UUID
 
 import redis.asyncio
@@ -13,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.orchestrator_agent import OrchestratorAgent
+from app.core.auth import get_current_user_optional
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.session import Session
@@ -45,12 +47,17 @@ async def audio_stream(
     websocket: WebSocket,
     session_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional),
 ) -> None:
     result = await db.execute(select(Session).where(Session.id == session_id))
     session = result.scalar_one_or_none()
     if not session or session.status != "active":
         await websocket.close(code=4004, reason="Session not found or not active")
         return
+    if session.user_email and current_user:
+        if session.user_email != current_user.get("email"):
+            await websocket.close(code=4003, reason="Not your session")
+            return
 
     await websocket.accept()
     log.info("WebSocket connected", session_id=str(session_id))

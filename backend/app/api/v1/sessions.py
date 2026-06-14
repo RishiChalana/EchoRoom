@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_user_optional
 from app.core.database import get_db
 from app.models.session import Session
 from app.models.session_report import SessionReport
@@ -18,21 +19,31 @@ router = APIRouter(prefix="/sessions", tags=["sessions"])
 log = structlog.get_logger(__name__)
 
 
+def _check_ownership(session: Session, current_user: Optional[dict]) -> None:
+    """Raise 403 if the session belongs to a different user."""
+    if session.user_email and current_user:
+        if session.user_email != current_user.get("email"):
+            raise HTTPException(status_code=403, detail="Not your session")
+
+
 @router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_session(
     body: CreateSessionRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional),
 ) -> SessionResponse:
+    user_email = current_user.get("email") if current_user else None
     session = Session(
         status="active",
         audience_profile=body.audience_profile,
         name=body.name,
         report_ready=False,
+        user_email=user_email,
     )
     db.add(session)
     await db.flush()
     await db.refresh(session)
-    log.info("Session created", session_id=str(session.id))
+    log.info("Session created", session_id=str(session.id), user_email=user_email)
     return SessionResponse.model_validate(session)
 
 
@@ -40,12 +51,14 @@ async def create_session(
 async def get_session(
     session_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional),
 ) -> SessionResponse:
     result = await db.execute(select(Session).where(Session.id == session_id))
     session = result.scalar_one_or_none()
     if not session:
         log.info("Session not found", session_id=str(session_id))
         raise HTTPException(status_code=404, detail="Session not found")
+    _check_ownership(session, current_user)
     log.info("Session retrieved", session_id=str(session_id))
     return SessionResponse.model_validate(session)
 
@@ -91,11 +104,13 @@ async def end_session(
 async def delete_session(
     session_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional),
 ) -> Response:
     result = await db.execute(select(Session).where(Session.id == session_id))
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    _check_ownership(session, current_user)
     # Delete associated report first (no cascade in FK definition)
     report_result = await db.execute(select(SessionReport).where(SessionReport.session_id == session_id))
     report = report_result.scalar_one_or_none()
@@ -111,11 +126,18 @@ async def delete_session(
 async def list_sessions(
     status_filter: Optional[str] = Query(None, alias="status"),
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional),
 ) -> SessionListResponse:
-    stmt = select(Session)
+    user_email = current_user.get("email") if current_user else None
+    if not user_email:
+        # No authenticated user — return empty rather than leaking all sessions
+        return SessionListResponse(sessions=[])
+
+    stmt = select(Session).where(Session.user_email == user_email)
     if status_filter:
         stmt = stmt.where(Session.status == status_filter)
+    stmt = stmt.order_by(Session.created_at.desc())
     result = await db.execute(stmt)
     sessions = result.scalars().all()
-    log.info("Sessions listed", count=len(sessions), status_filter=status_filter)
+    log.info("Sessions listed", count=len(sessions), user_email=user_email)
     return SessionListResponse(sessions=[SessionResponse.model_validate(s) for s in sessions])

@@ -295,15 +295,15 @@ export default function LandingPage() {
                 Every session generates a full coaching report — engagement arc, filler word
                 frequency, pacing analysis, and AI-rewritten versions of your weakest moments.
               </p>
-              <Link
-                href="/register"
+              <button
+                onClick={() => document.getElementById("sample-report")?.scrollIntoView({ behavior: "smooth" })}
                 className="mt-8 inline-flex h-11 items-center rounded-lg border border-white/20 px-6 font-label text-[13px] font-semibold uppercase tracking-wide text-white/65 transition-colors hover:border-white/40 hover:text-white"
               >
                 See a Sample Report →
-              </Link>
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-px bg-white/10">
+            <div id="sample-report" className="grid grid-cols-2 gap-px bg-white/10">
               {[
                 { label: "Overall Score", value: "88", unit: "/100" },
                 { label: "Words / Min", value: "142", unit: "wpm" },

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Optional
 from uuid import UUID
 
 import structlog
@@ -8,6 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth import get_current_user_optional
 from app.core.database import get_db
 from app.models.agent_event import AgentEvent
 from app.models.session import Session
@@ -63,6 +65,7 @@ async def _build_engagement_timeline(
 async def get_report(
     session_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional),
 ):
     # 1) The session must exist.
     session_result = await db.execute(select(Session).where(Session.id == session_id))
@@ -70,6 +73,11 @@ async def get_report(
     if not session:
         log.info("Report requested for unknown session", session_id=str(session_id))
         raise HTTPException(status_code=404, detail="Session not found")
+
+    # Ownership check — 403 before revealing any content
+    if session.user_email and current_user:
+        if session.user_email != current_user.get("email"):
+            raise HTTPException(status_code=403, detail="Not your session")
 
     if session.status == "active":
         raise HTTPException(status_code=409, detail="Session still active")

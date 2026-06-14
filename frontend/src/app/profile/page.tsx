@@ -90,6 +90,12 @@ export default function ProfilePage() {
               </span>
             </div>
           )}
+          <button
+            onClick={() => console.log("[EchoRoom] Edit Profile — coming soon")}
+            className="mt-3 rounded border border-er-border px-3 py-1.5 font-label text-[13px] text-er-ink-3 transition-colors hover:border-er-border-2"
+          >
+            Edit Profile
+          </button>
         </div>
       </div>
 

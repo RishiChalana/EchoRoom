@@ -144,7 +144,7 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<AudienceProfile | "all">("all");
-  const [sort, setSort] = useState<"recent" | "score">("recent");
+  const [sort, setSort] = useState<"recent" | "oldest" | "score">("recent");
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -176,6 +176,8 @@ export default function LibraryPage() {
     .sort((a, b) => {
       if (sort === "score")
         return (b.overall_score ?? -1) - (a.overall_score ?? -1);
+      if (sort === "oldest")
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
@@ -227,10 +229,11 @@ export default function LibraryPage() {
         <div className="ml-auto">
           <select
             value={sort}
-            onChange={(e) => setSort(e.target.value as "recent" | "score")}
+            onChange={(e) => setSort(e.target.value as "recent" | "oldest" | "score")}
             className="h-8 rounded border border-er-border bg-er-surface px-3 font-label text-[14px] text-er-ink-2 focus:outline-none"
           >
             <option value="recent">Recent First ▾</option>
+            <option value="oldest">Oldest First ▾</option>
             <option value="score">Score ▾</option>
           </select>
         </div>

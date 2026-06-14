@@ -15,6 +15,7 @@ class Session(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(Text, default="active", nullable=False)
     audience_profile: Mapped[str] = mapped_column(Text, default="general", nullable=False)
     name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    user_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     overall_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
