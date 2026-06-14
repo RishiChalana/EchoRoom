@@ -1,86 +1,62 @@
 from __future__ import annotations
 
-import time
-import asyncio
 from typing import Any, Optional
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 import structlog
 
 from app.core.config import settings
 from app.core.database import check_db_health
 from app.core.redis import check_redis_health, get_redis_client
-from app.schemas.health import HealthResponse, ServiceStatus, FullHealthResponse
 
 router = APIRouter(prefix="/health", tags=["health"])
 log = structlog.get_logger(__name__)
 
 
-@router.get(
-    "",
-    response_model=HealthResponse,
-    summary="Basic health check",
-    description="Returns 200 if the API process is running. Does not check dependencies.",
-)
-async def health() -> HealthResponse:
-    return HealthResponse(
-        status="healthy",
-        version=settings.APP_VERSION,
-        environment=settings.ENVIRONMENT,
-    )
+@router.get("", summary="Health check")
+async def health() -> JSONResponse:
+    result: dict[str, Any] = {
+        "status": "healthy",
+        "version": settings.APP_VERSION,
+        "environment": settings.ENVIRONMENT,
+    }
+
+    db_ok = await check_db_health()
+    result["db"] = "healthy" if db_ok else "unreachable"
+    if not db_ok:
+        result["status"] = "degraded"
+
+    redis_ok = await check_redis_health()
+    result["redis"] = "healthy" if redis_ok else "unreachable"
+    if not redis_ok:
+        result["status"] = "degraded"
+
+    # Always 200 — Railway health check must see 2xx regardless of dependency state
+    return JSONResponse(status_code=200, content=result)
 
 
-@router.get(
-    "/full",
-    response_model=FullHealthResponse,
-    summary="Full dependency health check",
-    description="Checks PostgreSQL and Redis connectivity. Returns 503 if any dependency is down.",
-)
-async def full_health(response: Response) -> FullHealthResponse:
-    """Check all upstream dependencies and return aggregate status."""
-    started_at = time.perf_counter()
+@router.get("/full", summary="Full dependency health check")
+async def full_health() -> JSONResponse:
+    result: dict[str, Any] = {
+        "status": "healthy",
+        "version": settings.APP_VERSION,
+        "environment": settings.ENVIRONMENT,
+    }
 
-    # Run dependency checks
-    db_ok, redis_ok = await asyncio.gather(check_db_health(), check_redis_health())
+    db_ok = await check_db_health()
+    result["db"] = "healthy" if db_ok else "unreachable"
+    if not db_ok:
+        result["status"] = "degraded"
 
-    all_healthy = db_ok and redis_ok
-    latency_ms = round((time.perf_counter() - started_at) * 1000, 2)
+    redis_ok = await check_redis_health()
+    result["redis"] = "healthy" if redis_ok else "unreachable"
+    if not redis_ok:
+        result["status"] = "degraded"
 
-    overall = "healthy" if all_healthy else "degraded"
-    response.status_code = (
-        status.HTTP_200_OK if all_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
-    )
-
-    log.info(
-        "Full health check",
-        status=overall,
-        db_healthy=db_ok,
-        redis_healthy=redis_ok,
-        latency_ms=latency_ms,
-    )
-
-    return FullHealthResponse(
-        status=overall,
-        version=settings.APP_VERSION,
-        environment=settings.ENVIRONMENT,
-        services={
-            "database": ServiceStatus(
-                name="PostgreSQL",
-                status="healthy" if db_ok else "unhealthy",
-            ),
-            "redis": ServiceStatus(
-                name="Redis",
-                status="healthy" if redis_ok else "unhealthy",
-            ),
-        },
-        latency_ms=latency_ms,
-    )
+    return JSONResponse(status_code=200, content=result)
 
 
-@router.get(
-    "/workers",
-    summary="Celery worker queue diagnostics",
-    description="Returns coach queue depth and last processed session from Redis.",
-)
+@router.get("/workers", summary="Celery worker queue diagnostics")
 async def workers_health() -> dict[str, Any]:
     try:
         client = get_redis_client()
