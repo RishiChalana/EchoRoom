@@ -32,7 +32,7 @@ def _get_model():
         from faster_whisper import WhisperModel
 
         _model = WhisperModel(
-            "base",
+            "tiny.en",
             device="cpu",
             compute_type="int8",
             download_root="/tmp/huggingface",
