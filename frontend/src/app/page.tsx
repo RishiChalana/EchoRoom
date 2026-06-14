@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { getHealth } from "@/lib/api";
@@ -100,9 +101,18 @@ function Nav() {
         borderBottom: scrolled ? "1px solid rgba(255,255,255,0.06)" : "none",
       }}
     >
-      <span className="font-display text-[18px] font-semibold tracking-tight text-white">
-        EchoRoom
-      </span>
+      <Link href="/" className="flex items-center gap-2">
+        <Image
+          src="/logo.png"
+          alt=""
+          width={28}
+          height={28}
+          className="h-7 w-7"
+        />
+        <span className="font-display text-[18px] font-semibold tracking-tight text-white">
+          EchoRoom
+        </span>
+      </Link>
       <div className="flex items-center gap-3">
         <Link
           href="/login"

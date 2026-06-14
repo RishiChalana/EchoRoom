@@ -40,6 +40,13 @@ FROM base AS production
 # Non-root user
 RUN groupadd --system echoroom && useradd --system --gid echoroom echoroom
 
+# Redirect HuggingFace / Whisper model cache to /tmp (writable by all users).
+# /home/echoroom does not exist (system user has no home dir), so the default
+# ~/.cache/huggingface path fails with PermissionError at model download time.
+ENV HF_HOME=/tmp/huggingface \
+    HUGGINGFACE_HUB_CACHE=/tmp/huggingface \
+    TRANSFORMERS_CACHE=/tmp/huggingface
+
 COPY requirements.txt ./
 RUN pip install -r requirements.txt gunicorn==23.0.0
 

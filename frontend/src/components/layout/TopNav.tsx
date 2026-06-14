@@ -38,11 +38,17 @@ export function TopNav() {
     <header className="fixed top-0 left-0 right-0 z-40 h-14 border-b border-er-border bg-er-surface">
       <div className="mx-auto flex h-full max-w-container items-center justify-between px-6">
         {/* Logo */}
-        <Link
-          href="/dashboard"
-          className="font-display text-[17px] font-semibold text-er-ink tracking-tight"
-        >
-          EchoRoom
+        <Link href="/dashboard" className="flex items-center gap-2">
+          <Image
+            src="/logo.png"
+            alt=""
+            width={28}
+            height={28}
+            className="h-7 w-7"
+          />
+          <span className="font-display text-[17px] font-semibold tracking-tight text-er-ink">
+            EchoRoom
+          </span>
         </Link>
 
         {/* Nav links */}

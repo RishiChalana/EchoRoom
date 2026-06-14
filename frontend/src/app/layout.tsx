@@ -37,9 +37,20 @@ const geistMono = localFont({
   display: "swap",
 });
 
+// Logo updated: v2 — clear browser cache if favicon persists (Cmd+Shift+R)
 export const metadata: Metadata = {
   title: "EchoRoom",
   description: "Practice how you speak. Before it matters.",
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
+  openGraph: {
+    title: "EchoRoom",
+    description: "Practice how you speak. Before it matters.",
+    siteName: "EchoRoom",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

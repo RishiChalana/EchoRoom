@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 
@@ -27,6 +28,9 @@ export default function RegisterPage() {
     <div className="flex min-h-screen items-center justify-center bg-er-bg px-4">
       <div className="w-full max-w-[480px]">
         <div className="mb-10 text-center">
+          <div className="mb-4 flex justify-center">
+            <Image src="/logo.png" alt="EchoRoom" width={48} height={48} className="h-12 w-12" />
+          </div>
           <h1 className="font-display text-[40px] font-bold text-er-ink">EchoRoom</h1>
           <p className="mt-2 font-sans text-[16px] text-er-ink-2">
             Create your account.
