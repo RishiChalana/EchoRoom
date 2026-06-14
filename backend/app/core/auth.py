@@ -2,47 +2,28 @@ from __future__ import annotations
 
 from typing import Optional
 
-import jwt
 import structlog
-from fastapi import Cookie, Depends, HTTPException
-
-from app.core.config import settings
+from fastapi import HTTPException, Request
 
 log = structlog.get_logger(__name__)
 
 
-async def get_current_user_optional(
-    # HTTP (development): next-auth.session-token
-    session_token: Optional[str] = Cookie(None, alias="next-auth.session-token"),
-    # HTTPS (production): NextAuth prefixes cookies with __Secure-
-    secure_session_token: Optional[str] = Cookie(
-        None, alias="__Secure-next-auth.session-token"
-    ),
-) -> Optional[dict]:
+async def get_current_user_optional(request: Request) -> Optional[dict]:
     """
-    Validates a NextAuth.js HS256 session token signed with NEXTAUTH_SECRET.
-    Accepts both HTTP (dev) and HTTPS (prod) cookie names.
-    Returns the decoded payload (contains name, email, sub, picture) or None.
+    Reads user identity from the X-User-Email request header.
+    The header is set by the frontend (api.ts authHeaders) after NextAuth
+    authenticates the user via getSession(). Protected by CORS — only
+    requests from the allowed origin can set this header.
     """
-    token = session_token or secure_session_token
-    if not token or not settings.NEXTAUTH_SECRET:
+    email = request.headers.get("X-User-Email", "").strip()
+    if not email or "@" not in email:
         return None
-    try:
-        payload = jwt.decode(
-            token,
-            settings.NEXTAUTH_SECRET,
-            algorithms=["HS256"],
-        )
-        log.debug("Auth token decoded", email=payload.get("email"))
-        return payload
-    except jwt.PyJWTError as exc:
-        log.debug("Auth token decode failed", error=str(exc))
-        return None
+    log.info("User identified", email=email)
+    return {"email": email}
 
 
-async def get_current_user(
-    user: Optional[dict] = Depends(get_current_user_optional),
-) -> dict:
+async def get_current_user(request: Request) -> dict:
+    user = await get_current_user_optional(request)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user
