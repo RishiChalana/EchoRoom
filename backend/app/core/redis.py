@@ -23,9 +23,14 @@ async def init_redis() -> None:
         retry_on_timeout=True,
     )
     _client = Redis(connection_pool=_pool)
-    # Verify connection
-    await _client.ping()
-    log.info("Redis connection pool initialized", url=settings.REDIS_URL)
+    try:
+        await _client.ping()
+        log.info("Redis connection pool initialized", url=settings.REDIS_URL)
+    except Exception as e:
+        log.warning(
+            "Redis not reachable at startup — will retry on first use",
+            error=str(e),
+        )
 
 
 async def close_redis() -> None:
