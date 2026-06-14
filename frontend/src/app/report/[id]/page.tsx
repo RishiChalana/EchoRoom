@@ -40,9 +40,9 @@ function cleanEvidence(raw: string): string | null {
 
 // ── Insight card ──────────────────────────────────────────────────────────────
 const INSIGHT_STYLES = {
-  critical:    { chip: "bg-[#fde8e8] text-[#ba1a1a]", label: "Critical" },
-  improvement: { chip: "bg-[#fef3e2] text-[#92400e]", label: "Improvement" },
-  strength:    { chip: "bg-[#e6f4ea] text-[#2d6a4f]", label: "Strength" },
+  critical:    { chip: "bg-er-red-dim text-er-red", label: "Critical" },
+  improvement: { chip: "bg-er-amber-dim text-er-amber", label: "Improvement" },
+  strength:    { chip: "bg-er-green-dim text-er-green", label: "Strength" },
 } as const;
 
 function InsightCard({ insight }: { insight: CoachInsight }) {
@@ -163,7 +163,7 @@ export default function ReportPage({ params }: PageProps) {
           </button>
           <button
             onClick={() => router.push("/rooms")}
-            className="rounded-lg bg-er-ink px-5 py-2.5 font-sans text-[14px] font-medium text-white"
+            className="rounded-lg bg-er-btn-bg px-5 py-2.5 font-sans text-[14px] font-medium text-er-btn-text"
           >
             New Session
           </button>
@@ -188,7 +188,7 @@ export default function ReportPage({ params }: PageProps) {
           </button>
           <button
             onClick={() => router.push("/rooms")}
-            className="rounded-lg bg-er-ink px-5 py-2.5 font-sans text-[14px] font-medium text-white"
+            className="rounded-lg bg-er-btn-bg px-5 py-2.5 font-sans text-[14px] font-medium text-er-btn-text"
           >
             New Session
           </button>
@@ -411,17 +411,17 @@ export default function ReportPage({ params }: PageProps) {
               </h2>
               <div className="flex gap-2">
                 {counts.critical > 0 && (
-                  <span className="rounded bg-[#fde8e8] px-2 py-0.5 font-label text-[12px] text-[#ba1a1a]">
+                  <span className="rounded bg-er-red-dim px-2 py-0.5 font-label text-[12px] text-er-red">
                     {counts.critical} critical
                   </span>
                 )}
                 {counts.improvement > 0 && (
-                  <span className="rounded bg-[#fef3e2] px-2 py-0.5 font-label text-[12px] text-[#92400e]">
+                  <span className="rounded bg-er-amber-dim px-2 py-0.5 font-label text-[12px] text-er-amber">
                     {counts.improvement} improve
                   </span>
                 )}
                 {counts.strength > 0 && (
-                  <span className="rounded bg-[#e6f4ea] px-2 py-0.5 font-label text-[12px] text-[#2d6a4f]">
+                  <span className="rounded bg-er-green-dim px-2 py-0.5 font-label text-[12px] text-er-green">
                     {counts.strength} strength
                   </span>
                 )}
@@ -488,7 +488,7 @@ export default function ReportPage({ params }: PageProps) {
         <div className="mt-12 pb-16 text-center">
           <Link
             href="/rooms"
-            className="inline-flex h-11 items-center rounded-lg bg-er-ink px-5 font-sans text-[15px] font-medium text-white transition-opacity hover:opacity-90"
+            className="inline-flex h-11 items-center rounded-lg bg-er-btn-bg px-5 font-sans text-[15px] font-medium text-er-btn-text transition-opacity hover:opacity-90"
           >
             Start New Session
           </Link>

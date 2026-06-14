@@ -219,7 +219,7 @@ export default function LibraryPage() {
             className={cn(
               "h-8 rounded px-4 font-label text-[14px] font-medium transition-colors",
               filter === tab.value
-                ? "bg-er-ink text-white"
+                ? "bg-er-btn-bg text-er-btn-text"
                 : "border border-er-border bg-er-surface text-er-ink-2 hover:border-er-border-2 hover:text-er-ink"
             )}
           >

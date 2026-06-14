@@ -34,6 +34,13 @@ const config: Config = {
           "dark-ink-2":   "var(--er-dark-ink-2)",
           "dark-border":  "var(--er-dark-border)",
           "dark-blue":    "var(--er-dark-blue)",
+          "btn-bg":           "var(--er-btn-bg)",
+          "btn-text":         "var(--er-btn-text)",
+          "btn-ghost-border": "var(--er-btn-ghost-border)",
+          "btn-ghost-text":   "var(--er-btn-ghost-text)",
+          "red-dim":   "var(--er-red-dim)",
+          "amber-dim": "var(--er-amber-dim)",
+          "green-dim": "var(--er-green-dim)",
         },
       },
       fontFamily: {

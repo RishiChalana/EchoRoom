@@ -118,7 +118,7 @@ export default function LoginPage() {
             <button
               type="button"
               disabled
-              className="h-11 w-full cursor-not-allowed rounded-lg bg-er-ink font-sans text-[15px] font-medium text-white opacity-40"
+              className="h-11 w-full cursor-not-allowed rounded-lg bg-er-btn-bg font-sans text-[15px] font-medium text-er-btn-text opacity-40"
               title="Email sign-in coming soon"
             >
               Sign In

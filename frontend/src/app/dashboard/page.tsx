@@ -99,7 +99,7 @@ export default function DashboardPage() {
         </div>
         <Link
           href="/rooms"
-          className="flex h-11 shrink-0 items-center rounded-lg bg-er-ink px-5 font-label text-[14px] font-medium uppercase tracking-wide text-white transition-opacity hover:opacity-90"
+          className="flex h-11 shrink-0 items-center rounded-lg bg-er-btn-bg px-5 font-label text-[14px] font-medium uppercase tracking-wide text-er-btn-text transition-opacity hover:opacity-90"
         >
           ▶ Start New Session
         </Link>
@@ -246,7 +246,7 @@ export default function DashboardPage() {
               </p>
               <Link
                 href="/rooms"
-                className="mt-6 flex h-11 items-center rounded-lg bg-er-ink px-5 font-sans text-[15px] font-medium text-white"
+                className="mt-6 flex h-11 items-center rounded-lg bg-er-btn-bg px-5 font-sans text-[15px] font-medium text-er-btn-text"
               >
                 Start your first session →
               </Link>

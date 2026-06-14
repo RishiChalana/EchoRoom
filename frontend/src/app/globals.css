@@ -31,6 +31,17 @@
   --er-red:          #ba1a1a;
   --er-green:        #2d6a4f;
 
+  /* Buttons */
+  --er-btn-bg:           #191c1d;
+  --er-btn-text:         #ffffff;
+  --er-btn-ghost-border: #c6c6ca;
+  --er-btn-ghost-text:   #45474a;
+
+  /* Semantic dim backgrounds for chips */
+  --er-red-dim:   rgba(186, 26, 26, 0.08);
+  --er-amber-dim: rgba(230, 126, 34, 0.08);
+  --er-green-dim: rgba(45, 106, 79, 0.08);
+
   /* Session dark (live session page only) */
   --er-dark-bg:      #0a0a0a;
   --er-dark-surface: #161616;
@@ -59,6 +70,17 @@
   --er-amber:        #f59e0b;
   --er-red:          #f87171;
   --er-green:        #4ade80;
+
+  /* Buttons */
+  --er-btn-bg:           #e8e8ee;
+  --er-btn-text:         #111113;
+  --er-btn-ghost-border: #3a3a44;
+  --er-btn-ghost-text:   #a0a0a8;
+
+  /* Semantic dim backgrounds for chips */
+  --er-red-dim:   rgba(248, 113, 113, 0.12);
+  --er-amber-dim: rgba(245, 158, 11, 0.12);
+  --er-green-dim: rgba(74, 222, 128, 0.12);
 }
 
 * { box-sizing: border-box; }

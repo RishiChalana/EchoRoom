@@ -192,7 +192,7 @@ export default function RoomsPage() {
           className={cn(
             "inline-flex h-12 items-center gap-2 rounded-lg px-8 font-label text-[14px] font-medium uppercase tracking-wide transition-all",
             selected && !loading
-              ? "bg-er-ink text-white hover:opacity-90"
+              ? "bg-er-btn-bg text-er-btn-text hover:opacity-90"
               : "cursor-not-allowed bg-er-surface-3 text-er-ink-3"
           )}
         >
