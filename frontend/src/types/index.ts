@@ -1,31 +1,10 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// EchoRoom TypeScript Type Definitions
-//
-// These mirror the Pydantic schemas in backend/app/schemas/.
-// Keep in sync manually — or run the codegen script (added in Week 8).
-// ─────────────────────────────────────────────────────────────────────────────
-
 export type HealthStatus = "healthy" | "degraded" | "unhealthy" | "unknown";
-
-export interface ServiceStatus {
-  name: string;
-  status: HealthStatus;
-  message?: string;
-}
 
 export interface HealthResponse {
   status: HealthStatus;
   version: string;
   environment: string;
   timestamp: string;
-}
-
-export interface FullHealthResponse extends HealthResponse {
-  services: {
-    database: ServiceStatus;
-    redis: ServiceStatus;
-  };
-  latency_ms: number;
 }
 
 // ── Session ───────────────────────────────────────────────────────────────────
@@ -78,11 +57,8 @@ export interface EngagementTimelinePoint {
 export interface SessionReport {
   id: string;
   session_id: string;
-  /** 0–100 integer (normalised by backend before response) */
   overall_score: number | null;
-  /** 0–100 integer */
   engagement_avg: number | null;
-  /** 0–100 integer */
   clarity_avg: number | null;
   wpm?: number | null;
   insights: CoachInsight[];
@@ -93,7 +69,7 @@ export interface SessionReport {
   engagement_timeline: EngagementTimelinePoint[];
 }
 
-// ── Agent events (mirroring backend/app/schemas/events.py) ───────────────────
+// ── Agent events ──────────────────────────────────────────────────────────────
 
 export interface WordToken {
   word: string;
@@ -138,6 +114,4 @@ export interface SessionStateUpdate {
   engagement_avg: number | null;
   clarity_avg: number | null;
   latest_transcript: string | null;
-  latest_question: string | null;
-  retention_score: number | null;
 }

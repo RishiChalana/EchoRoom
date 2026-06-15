@@ -14,10 +14,6 @@ def transcribe_chunk(self, session_id: str, chunk_id: str, audio_b64: str) -> di
 
         chunk = run_transcription(session_id, chunk_id, audio_b64)
 
-        # Chain: dispatch engagement only. Clarity is now a single whole-transcript
-        # pass run by the coach agent at session end (per-chunk clarity 429'd on
-        # the free tier). The analyze_clarity task remains defined below but is no
-        # longer dispatched in the live chain.
         classify_engagement.apply_async(
             args=[session_id, chunk_id, chunk.text],
             queue="local",
@@ -39,18 +35,6 @@ def classify_engagement(self, session_id: str, chunk_id: str, text: str) -> dict
         return signal.model_dump()
     except Exception as exc:
         log.error("Engagement classification failed", chunk_id=chunk_id, error=str(exc))
-        raise self.retry(exc=exc, countdown=2 ** self.request.retries)
-
-
-@celery_app.task(name="app.workers.tasks.analyze_clarity", bind=True, max_retries=3)
-def analyze_clarity(self, session_id: str, chunk_id: str, text: str) -> dict:
-    try:
-        from app.agents.clarity_agent import analyze_clarity as _analyze  # noqa: PLC0415
-
-        analysis = _analyze(session_id, chunk_id, text)
-        return analysis.model_dump()
-    except Exception as exc:
-        log.error("Clarity analysis failed", chunk_id=chunk_id, error=str(exc))
         raise self.retry(exc=exc, countdown=2 ** self.request.retries)
 
 

@@ -1,13 +1,6 @@
-/**
- * EchoRoom Zustand Store
- *
- * Centralised application state.
- * Slices: health, session, report.
- */
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import type {
-  FullHealthResponse,
   Session,
   SessionReport,
   SessionStateUpdate,
@@ -15,16 +8,7 @@ import type {
 } from "@/types";
 import { apiFetch, API_URL } from "@/lib/utils";
 
-// Outcome of a single report poll — lets the page decide whether to keep polling.
 export type ReportFetchResult = "ready" | "generating" | "not_found" | "error";
-
-// ── Health Slice ───────────────────────────────────────────────────────────────
-interface HealthSlice {
-  health: FullHealthResponse | null;
-  healthStatus: "idle" | "loading" | "success" | "error";
-  lastChecked: Date | null;
-  checkHealth: () => Promise<void>;
-}
 
 // ── Session Slice ─────────────────────────────────────────────────────────────
 interface SessionSlice {
@@ -34,7 +18,6 @@ interface SessionSlice {
   clarityAvg: number | null;
   latestTranscript: string | null;
   transcriptHistory: TranscriptChunk[];
-  createSession: (audienceProfile: string, name?: string) => Promise<Session>;
   loadSession: (sessionId: string) => Promise<Session>;
   endSession: (sessionId: string) => Promise<void>;
   updateFromStateEvent: (update: SessionStateUpdate) => void;
@@ -48,28 +31,11 @@ interface ReportSlice {
   fetchReport: (sessionId: string) => Promise<ReportFetchResult>;
 }
 
-// ── App Store ─────────────────────────────────────────────────────────────────
-type AppStore = HealthSlice & SessionSlice & ReportSlice;
+type AppStore = SessionSlice & ReportSlice;
 
 export const useAppStore = create<AppStore>()(
   devtools(
     (set, get) => ({
-      // ── Health ──────────────────────────────────────────────────────────────
-      health: null,
-      healthStatus: "idle",
-      lastChecked: null,
-
-      checkHealth: async () => {
-        set({ healthStatus: "loading" });
-        try {
-          const data = await apiFetch<FullHealthResponse>("/api/v1/health/full");
-          set({ health: data, healthStatus: "success", lastChecked: new Date() });
-        } catch (err) {
-          set({ healthStatus: "error", lastChecked: new Date() });
-          console.error("[EchoRoom] Health check failed:", err);
-        }
-      },
-
       // ── Session ─────────────────────────────────────────────────────────────
       session: null,
       sessionStatus: "idle",
@@ -78,20 +44,6 @@ export const useAppStore = create<AppStore>()(
       latestTranscript: null,
       transcriptHistory: [],
 
-      createSession: async (audienceProfile: string, name?: string) => {
-        set({ sessionStatus: "loading" });
-        try {
-          const session = await apiFetch<Session>("/api/v1/sessions", {
-            method: "POST",
-            body: JSON.stringify({ audience_profile: audienceProfile, name: name ?? null }),
-          });
-          set({ session, sessionStatus: "active" });
-          return session;
-        } catch (err) {
-          set({ sessionStatus: "error" });
-          throw err;
-        }
-      },
       loadSession: async (sessionId: string) => {
         const data = await apiFetch<Session>(`/api/v1/sessions/${sessionId}`);
         set({ session: data, sessionStatus: "active" });
@@ -116,8 +68,6 @@ export const useAppStore = create<AppStore>()(
         if (update.clarity_avg !== null) patch.clarityAvg = update.clarity_avg;
         if (update.latest_transcript !== null) patch.latestTranscript = update.latest_transcript;
 
-        // Append to history only when the transcript is present and changed — the
-        // orchestrator re-sends the same latest_transcript on every state event.
         if (update.latest_transcript) {
           const history = get().transcriptHistory;
           const last = history[history.length - 1];
@@ -155,7 +105,6 @@ export const useAppStore = create<AppStore>()(
 
       fetchReport: async (sessionId: string): Promise<ReportFetchResult> => {
         try {
-          // Raw fetch (not apiFetch) so we can read the 202 "generating" status.
           const res = await fetch(`${API_URL}/api/v1/reports/${sessionId}`, {
             headers: { "Content-Type": "application/json" },
             credentials: "include",

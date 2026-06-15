@@ -19,7 +19,6 @@ celery_app.conf.update(
     task_routes={
         "app.workers.tasks.transcribe_chunk": {"queue": "local"},
         "app.workers.tasks.classify_engagement": {"queue": "local"},
-        "app.workers.tasks.analyze_clarity": {"queue": "llm"},
         "app.workers.tasks.process_coach_session": {"queue": "coach"},
     },
     task_default_queue="local",

@@ -28,10 +28,6 @@ colorama==0.4.6              # Windows color support for dev console
 # HTTP client (for health checks and future integrations)
 httpx==0.28.0
 
-# Audio processing
-soundfile==0.12.1
-numpy==1.26.4
-
 
 # Agent pipeline
 faster-whisper==1.1.0

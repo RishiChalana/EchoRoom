@@ -48,6 +48,7 @@ out/
 .npm
 frontend/.pnp
 frontend/.pnp.js
+*.tsbuildinfo
 
 # Logs
 *.log
