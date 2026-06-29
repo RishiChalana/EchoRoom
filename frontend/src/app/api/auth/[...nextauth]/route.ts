@@ -6,6 +6,12 @@ import type { NextAuthOptions } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import type { Session } from "next-auth";
 
+// Server-side fetch must use the Docker-internal URL so the Next.js container
+// can reach the api container. Falls back to the public URL on Vercel where
+// INTERNAL_API_URL is not set.
+const serverApiUrl =
+  process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
 const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   session: { strategy: "jwt" as const },
@@ -35,8 +41,7 @@ const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-        const res = await fetch(`${apiUrl}/api/v1/auth/login`, {
+        const res = await fetch(`${serverApiUrl}/api/v1/auth/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -69,30 +74,41 @@ const authOptions: NextAuthOptions = {
         !token.backendTokenExpires ||
         (token.backendTokenExpires as number) < Date.now();
 
+      console.log(
+        "[jwt callback] email:", token.email,
+        "isExpiredOrMissing:", isExpiredOrMissing,
+        "API_URL:", process.env.NEXT_PUBLIC_API_URL,
+        "INTERNAL_API_URL:", process.env.INTERNAL_API_URL,
+      );
+
       if (isExpiredOrMissing && token.email) {
         try {
-          const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-          const res = await fetch(
-            `${apiUrl}/api/v1/auth/internal/issue-token`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Internal-Secret": process.env.NEXTAUTH_SECRET ?? "",
-              },
-              body: JSON.stringify({ email: token.email }),
-            }
-          );
+          const url = `${serverApiUrl}/api/v1/auth/internal/issue-token`;
+          console.log("[jwt callback] calling:", url);
+
+          const res = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Internal-Secret": process.env.NEXTAUTH_SECRET ?? "",
+            },
+            body: JSON.stringify({ email: token.email }),
+          });
+
+          console.log("[jwt callback] response status:", res.status);
+
           if (res.ok) {
             const data = await res.json() as { access_token: string };
+            console.log("[jwt callback] got token, length:", data.access_token?.length);
             token.backendAccessToken = data.access_token;
             // Refresh 1h before the backend's 24h expiry
             token.backendTokenExpires = Date.now() + 23 * 60 * 60 * 1000;
           } else {
-            console.warn("Failed to issue backend access token, status:", res.status);
+            const errText = await res.text();
+            console.error("[jwt callback] FAILED:", res.status, errText);
           }
         } catch (err) {
-          console.warn("Error issuing backend access token:", err);
+          console.error("[jwt callback] EXCEPTION:", err);
         }
       }
 

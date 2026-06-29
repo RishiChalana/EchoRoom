@@ -5,6 +5,8 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const session = await getNextAuthSession();
+  console.log("[authHeaders] session:", session);
+  console.log("[authHeaders] backendAccessToken present:", !!session?.backendAccessToken);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (session?.backendAccessToken) {
     headers["Authorization"] = `Bearer ${session.backendAccessToken}`;
