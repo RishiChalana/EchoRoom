@@ -57,12 +57,45 @@ const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
+    async jwt({ token, user }) {
       if (user) {
         token.email = user.email;
         token.name = user.name;
         token.image = user.image;
       }
+
+      const isExpiredOrMissing =
+        !token.backendAccessToken ||
+        !token.backendTokenExpires ||
+        (token.backendTokenExpires as number) < Date.now();
+
+      if (isExpiredOrMissing && token.email) {
+        try {
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+          const res = await fetch(
+            `${apiUrl}/api/v1/auth/internal/issue-token`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Internal-Secret": process.env.NEXTAUTH_SECRET ?? "",
+              },
+              body: JSON.stringify({ email: token.email }),
+            }
+          );
+          if (res.ok) {
+            const data = await res.json() as { access_token: string };
+            token.backendAccessToken = data.access_token;
+            // Refresh 1h before the backend's 24h expiry
+            token.backendTokenExpires = Date.now() + 23 * 60 * 60 * 1000;
+          } else {
+            console.warn("Failed to issue backend access token, status:", res.status);
+          }
+        } catch (err) {
+          console.warn("Error issuing backend access token:", err);
+        }
+      }
+
       return token;
     },
     session({ session, token }: { session: Session; token: JWT }) {
@@ -71,6 +104,7 @@ const authOptions: NextAuthOptions = {
         session.user.name = token.name as string;
         session.user.image = token.image as string | undefined;
       }
+      session.backendAccessToken = token.backendAccessToken as string | undefined;
       return session;
     },
   },

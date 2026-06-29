@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.core.auth import create_access_token
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import hash_password, verify_password
 from app.models.user import User
@@ -75,3 +77,25 @@ async def login(
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     return AuthResponse(id=user.id, email=user.email, name=user.name)
+
+
+class IssueTokenRequest(BaseModel):
+    email: EmailStr
+
+
+class IssueTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+@router.post("/internal/issue-token", response_model=IssueTokenResponse)
+async def issue_token(body: IssueTokenRequest, request: Request) -> IssueTokenResponse:
+    """Mints a backend-signed JWT. Only callable server-side (from NextAuth's
+    jwt callback) via the shared X-Internal-Secret header — browsers never
+    possess this secret."""
+    provided_secret = request.headers.get("X-Internal-Secret", "")
+    if not settings.NEXTAUTH_SECRET or provided_secret != settings.NEXTAUTH_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid internal secret")
+
+    token = create_access_token(body.email)
+    return IssueTokenResponse(access_token=token)

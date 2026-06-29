@@ -73,6 +73,7 @@ class Settings(BaseSettings):
 
     # ── Security ──────────────────────────────────────────────────────────────
     SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
+    NEXTAUTH_SECRET: str = ""
 
     # ── LLM providers ─────────────────────────────────────────────────────────
     GEMINI_API_KEY: str = ""
