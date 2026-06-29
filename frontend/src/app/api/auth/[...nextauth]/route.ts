@@ -74,18 +74,9 @@ const authOptions: NextAuthOptions = {
         !token.backendTokenExpires ||
         (token.backendTokenExpires as number) < Date.now();
 
-      console.log(
-        "[jwt callback] email:", token.email,
-        "isExpiredOrMissing:", isExpiredOrMissing,
-        "API_URL:", process.env.NEXT_PUBLIC_API_URL,
-        "INTERNAL_API_URL:", process.env.INTERNAL_API_URL,
-      );
-
       if (isExpiredOrMissing && token.email) {
         try {
           const url = `${serverApiUrl}/api/v1/auth/internal/issue-token`;
-          console.log("[jwt callback] calling:", url);
-
           const res = await fetch(url, {
             method: "POST",
             headers: {
@@ -95,11 +86,8 @@ const authOptions: NextAuthOptions = {
             body: JSON.stringify({ email: token.email }),
           });
 
-          console.log("[jwt callback] response status:", res.status);
-
           if (res.ok) {
             const data = await res.json() as { access_token: string };
-            console.log("[jwt callback] got token, length:", data.access_token?.length);
             token.backendAccessToken = data.access_token;
             // Refresh 1h before the backend's 24h expiry
             token.backendTokenExpires = Date.now() + 23 * 60 * 60 * 1000;
