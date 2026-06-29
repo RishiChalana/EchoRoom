@@ -103,6 +103,7 @@ class CoachState(TypedDict):
     engagement_avg: Optional[float]
     clarity_avg: Optional[float]
     clarity_issues: List[dict]
+    clarity_error: Optional[str]
     wpm: Optional[int]
 
 
@@ -203,6 +204,7 @@ class CoachAgent:
             ),
             "clarity_avg": clarity_result.get("score"),
             "clarity_issues": clarity_result.get("issues", []),
+            "clarity_error": clarity_result.get("error"),
             "wpm": wpm,
         }
 
@@ -352,11 +354,12 @@ class CoachAgent:
                 )
             )
         else:
+            clarity_error = state.get("clarity_error") or "The clarity analyzer produced no results."
             insights.append(
                 CoachInsight(
                     category="improvement",
                     text="Clarity analysis was unavailable this session",
-                    evidence="The clarity analyzer produced no results (likely rate-limited).",
+                    evidence=clarity_error,
                 )
             )
 
@@ -492,6 +495,7 @@ class CoachAgent:
             "engagement_avg": None,
             "clarity_avg": None,
             "clarity_issues": [],
+            "clarity_error": None,
             "wpm": None,
         }
         try:
