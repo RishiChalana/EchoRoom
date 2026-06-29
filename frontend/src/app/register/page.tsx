@@ -3,6 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Mail, Lock, User } from "lucide-react";
 
 function GoogleLogo() {
   return (
@@ -24,6 +27,47 @@ function GitHubLogo() {
 }
 
 export default function RegisterPage() {
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+    const res = await fetch(`${apiUrl}/api/v1/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, name: name || null }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json() as { detail?: string };
+      setError(data.detail ?? "Registration failed");
+      setLoading(false);
+      return;
+    }
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
+
+    setLoading(false);
+
+    if (result?.error) {
+      router.push("/login");
+    } else {
+      router.push("/dashboard");
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-er-bg px-4">
       <div className="w-full max-w-[480px]">
@@ -38,6 +82,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="rounded-lg border border-er-border bg-er-surface p-8">
+          {/* OAuth buttons */}
           <div className="flex flex-col gap-3">
             <button
               onClick={() => void signIn("google", { callbackUrl: "/dashboard" })}
@@ -54,6 +99,71 @@ export default function RegisterPage() {
               Continue with GitHub
             </button>
           </div>
+
+          {/* Divider */}
+          <div className="my-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-er-border" />
+            <span className="font-sans text-[13px] text-er-ink-4">or</span>
+            <div className="h-px flex-1 bg-er-border" />
+          </div>
+
+          {/* Email/password registration form */}
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+            <div className="relative">
+              <User
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-er-ink-3"
+              />
+              <input
+                type="text"
+                placeholder="Full name (optional)"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="h-11 w-full border-b border-er-border-2 bg-transparent pl-9 font-sans text-[15px] text-er-ink placeholder:text-er-ink-4 focus:outline-none"
+              />
+            </div>
+            <div className="relative">
+              <Mail
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-er-ink-3"
+              />
+              <input
+                type="email"
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="h-11 w-full border-b border-er-border-2 bg-transparent pl-9 font-sans text-[15px] text-er-ink placeholder:text-er-ink-4 focus:outline-none"
+              />
+            </div>
+            <div className="relative">
+              <Lock
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-er-ink-3"
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="h-11 w-full border-b border-er-border-2 bg-transparent pl-9 font-sans text-[15px] text-er-ink placeholder:text-er-ink-4 focus:outline-none"
+              />
+              <p className="text-[12px] text-er-ink-3 mt-1">At least 8 characters</p>
+            </div>
+
+            {error && (
+              <p className="text-[13px] text-er-red mt-2">{error}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="h-11 w-full rounded-lg bg-er-btn-bg font-sans text-[15px] font-medium text-er-btn-text transition-opacity disabled:opacity-50"
+            >
+              {loading ? "Creating account…" : "Create Account"}
+            </button>
+          </form>
 
           <p className="mt-6 text-center font-sans text-[13px] text-er-ink-3">
             By continuing, you agree to our{" "}

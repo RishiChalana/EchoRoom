@@ -3,6 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Mail, Lock } from "lucide-react";
 
 function GoogleLogo() {
@@ -37,6 +39,32 @@ function GitHubLogo() {
 }
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
+
+    setLoading(false);
+
+    if (result?.error) {
+      setError("Invalid email or password");
+    } else {
+      router.push("/dashboard");
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-er-bg px-4">
       <div className="w-full max-w-[480px]">
@@ -76,8 +104,8 @@ export default function LoginPage() {
             <div className="h-px flex-1 bg-er-border" />
           </div>
 
-          {/* Email/password — disabled, coming soon */}
-          <fieldset disabled className="space-y-4 opacity-50">
+          {/* Email/password form */}
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
             <div className="relative">
               <Mail
                 size={16}
@@ -86,8 +114,10 @@ export default function LoginPage() {
               <input
                 type="email"
                 placeholder="Email address"
-                className="h-11 w-full cursor-not-allowed border-b border-er-border-2 bg-transparent pl-9 font-sans text-[15px] text-er-ink placeholder:text-er-ink-4 focus:outline-none"
-                title="Email sign-in coming soon"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="h-11 w-full border-b border-er-border-2 bg-transparent pl-9 font-sans text-[15px] text-er-ink placeholder:text-er-ink-4 focus:outline-none"
               />
             </div>
             <div className="relative">
@@ -98,32 +128,37 @@ export default function LoginPage() {
               <input
                 type="password"
                 placeholder="Password"
-                className="h-11 w-full cursor-not-allowed border-b border-er-border-2 bg-transparent pl-9 font-sans text-[15px] text-er-ink placeholder:text-er-ink-4 focus:outline-none"
-                title="Email sign-in coming soon"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="h-11 w-full border-b border-er-border-2 bg-transparent pl-9 font-sans text-[15px] text-er-ink placeholder:text-er-ink-4 focus:outline-none"
               />
             </div>
+
+            {error && (
+              <p className="text-[13px] text-er-red mt-2">{error}</p>
+            )}
+
             <div className="flex items-center justify-between">
-              <label className="flex cursor-not-allowed items-center gap-2 font-sans text-[14px] text-er-ink-2">
-                <input type="checkbox" className="rounded" disabled />
+              <label className="flex cursor-pointer items-center gap-2 font-sans text-[14px] text-er-ink-2">
+                <input type="checkbox" className="rounded" />
                 Remember me
               </label>
               <button
                 type="button"
-                disabled
-                className="cursor-not-allowed font-sans text-[14px] text-er-blue-text"
+                className="font-sans text-[14px] text-er-blue-text"
               >
                 Forgot password?
               </button>
             </div>
             <button
-              type="button"
-              disabled
-              className="h-11 w-full cursor-not-allowed rounded-lg bg-er-btn-bg font-sans text-[15px] font-medium text-er-btn-text opacity-40"
-              title="Email sign-in coming soon"
+              type="submit"
+              disabled={loading}
+              className="h-11 w-full rounded-lg bg-er-btn-bg font-sans text-[15px] font-medium text-er-btn-text transition-opacity disabled:opacity-50"
             >
-              Sign In
+              {loading ? "Signing in…" : "Sign In"}
             </button>
-          </fieldset>
+          </form>
         </div>
 
         <p className="mt-6 text-center font-sans text-[14px] text-er-ink-3">
