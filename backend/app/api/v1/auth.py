@@ -1,4 +1,4 @@
-from __future__ import annotations
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app.core.auth import create_access_token
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.rate_limit import limiter
 from app.core.security import hash_password, verify_password
 from app.models.user import User
 
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
-    name: str | None = None
+    name: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
@@ -28,7 +29,7 @@ class LoginRequest(BaseModel):
 class AuthResponse(BaseModel):
     id: str
     email: str
-    name: str | None
+    name: Optional[str]
 
 
 def _validate_password_strength(password: str) -> None:
@@ -40,7 +41,9 @@ def _validate_password_strength(password: str) -> None:
 
 
 @router.post("/register", response_model=AuthResponse)
+@limiter.limit("3/minute")
 async def register(
+    request: Request,
     body: RegisterRequest,
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
@@ -66,7 +69,9 @@ async def register(
 
 
 @router.post("/login", response_model=AuthResponse)
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     body: LoginRequest,
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
@@ -89,7 +94,8 @@ class IssueTokenResponse(BaseModel):
 
 
 @router.post("/internal/issue-token", response_model=IssueTokenResponse)
-async def issue_token(body: IssueTokenRequest, request: Request) -> IssueTokenResponse:
+@limiter.limit("30/minute")
+async def issue_token(request: Request, body: IssueTokenRequest) -> IssueTokenResponse:
     """Mints a backend-signed JWT. Only callable server-side (from NextAuth's
     jwt callback) via the shared X-Internal-Secret header — browsers never
     possess this secret."""

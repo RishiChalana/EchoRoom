@@ -1,7 +1,19 @@
 from __future__ import annotations
 
+import sentry_sdk
+from sentry_sdk.integrations.celery import CeleryIntegration
+
 from celery import Celery
 from app.core.config import settings
+
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        integrations=[CeleryIntegration()],
+        send_default_pii=False,
+        traces_sample_rate=0.1,
+    )
 
 celery_app = Celery(
     "echoroom",

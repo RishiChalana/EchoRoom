@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     # ── LLM providers ─────────────────────────────────────────────────────────
     GEMINI_API_KEY: str = ""
 
+    # ── Observability ─────────────────────────────────────────────────────────
+    SENTRY_DSN: str = ""
+
     # ── Properties ────────────────────────────────────────────────────────────
     @property
     def is_production(self) -> bool:

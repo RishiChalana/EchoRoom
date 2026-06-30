@@ -31,7 +31,13 @@ from sqlalchemy.pool import NullPool
 
 from app.core import database as _db_module
 from app.core.database import Base, get_db
+from app.core.rate_limit import limiter as _rate_limiter
 from app.main import app  # triggers all model imports, registering metadata
+
+# Disable rate limiting in tests — all endpoints accumulate counts against the
+# same in-memory bucket (one process, one IP for all ASGI requests), so tight
+# limits like 3/minute for register would cause later tests to spuriously 429.
+_rate_limiter.enabled = False
 
 # ── Patch AsyncSessionFactory to use NullPool ─────────────────────────────────
 # check_db_health() (called by the health endpoint) uses AsyncSessionFactory

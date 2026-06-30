@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@sentry/nextjs": "^8.55.2",
     "@types/three": "^0.184.1",
     "clsx": "^2.1.1",
     "geist": "^1.7.2",

@@ -7,6 +7,7 @@ from typing import Any, List, Literal, Optional, TypedDict
 
 import instructor
 import redis
+import sentry_sdk
 import structlog
 from langgraph.graph import END, StateGraph
 from openai import AsyncOpenAI
@@ -228,6 +229,10 @@ class CoachAgent:
             classifications = [s.model_dump() for s in response.segments]
         except Exception as exc:
             log.warning("coach node fell back to heuristic", node="segment_analyzer", error=str(exc))
+            sentry_sdk.capture_message(
+                f"Coach pipeline fallback triggered: segment_analyzer — {type(exc).__name__}",
+                level="warning",
+            )
             classifications = self._fallback_segments(state, transcript_events)
         return {**state, "segment_classifications": classifications}
 
@@ -295,6 +300,10 @@ class CoachAgent:
             )
         except Exception as exc:
             log.warning("coach node fell back to heuristic", node="insight_synthesizer", error=str(exc))
+            sentry_sdk.capture_message(
+                f"Coach pipeline fallback triggered: insight_synthesizer — {type(exc).__name__}",
+                level="warning",
+            )
             insights = self._fallback_insights(state)
 
         # Surface the top clarity issue as one extra insight — only when the batch
@@ -414,6 +423,10 @@ class CoachAgent:
                 rewrites.append(rewrite)
         except Exception as exc:
             log.warning("coach node fell back to heuristic", node="rewrite_generator", error=str(exc))
+            sentry_sdk.capture_message(
+                f"Coach pipeline fallback triggered: rewrite_generator — {type(exc).__name__}",
+                level="warning",
+            )
             rewrites = []  # rewrites are genuinely optional
 
         return {**state, "rewrites": rewrites}
@@ -514,6 +527,7 @@ class CoachAgent:
                 session_id=self.session_id,
                 error=str(exc),
             )
+            sentry_sdk.capture_exception(exc)
             return await self._save_minimal_report()
 
     async def _save_minimal_report(self) -> dict:

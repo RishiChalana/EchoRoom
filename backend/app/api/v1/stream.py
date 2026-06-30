@@ -17,6 +17,7 @@ from app.agents.orchestrator_agent import OrchestratorAgent
 from app.core.auth import get_current_user_optional
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.redis import get_redis_client
 from app.models.session import Session
 
 router = APIRouter(prefix="/ws", tags=["stream"])
@@ -29,6 +30,23 @@ _SUB_CHANNELS = ["state", "report_ready"]
 
 _FLUSH_BYTES = 48_000          # ~3s of webm/opus at 128kbps
 _FLUSH_SECONDS = 3.0
+
+
+async def _check_websocket_rate_limit(identifier: str) -> bool:
+    """
+    Allows max 5 new WebSocket connections per session per 60 seconds.
+    Returns True if the connection is allowed, False if rate limited.
+    Fails open on Redis errors so a Redis outage doesn't block all connections.
+    """
+    try:
+        client = get_redis_client()
+        key = f"ws_rate_limit:{identifier}"
+        count = await client.incr(key)
+        if count == 1:
+            await client.expire(key, 60)
+        return count <= 5
+    except Exception:
+        return True
 
 
 def _dispatch(session_id: str, chunk_id: str, audio_b64: str) -> None:
@@ -58,6 +76,10 @@ async def audio_stream(
         if session.user_email != current_user.get("email"):
             await websocket.close(code=4003, reason="Not your session")
             return
+
+    if not await _check_websocket_rate_limit(str(session_id)):
+        await websocket.close(code=1008, reason="Rate limit exceeded")
+        return
 
     await websocket.accept()
     log.info("WebSocket connected", session_id=str(session_id))

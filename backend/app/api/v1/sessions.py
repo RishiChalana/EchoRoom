@@ -1,16 +1,15 @@
-from __future__ import annotations
-
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user_optional
 from app.core.database import get_db
+from app.core.rate_limit import limiter
 from app.models.session import Session
 from app.models.session_report import SessionReport
 from app.schemas.session import CreateSessionRequest, SessionListResponse, SessionResponse
@@ -27,7 +26,9 @@ def _check_ownership(session: Session, current_user: Optional[dict]) -> None:
 
 
 @router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 async def create_session(
+    request: Request,
     body: CreateSessionRequest,
     db: AsyncSession = Depends(get_db),
     current_user: Optional[dict] = Depends(get_current_user_optional),
@@ -101,7 +102,9 @@ async def end_session(
 
 
 @router.delete("/{session_id}")
+@limiter.limit("20/minute")
 async def delete_session(
+    request: Request,
     session_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: Optional[dict] = Depends(get_current_user_optional),
