@@ -1,27 +1,26 @@
-"""
-Tests for the /api/v1/health endpoints.
-These are integration tests that require the API to be running.
-"""
+"""Health endpoint unit tests."""
 from __future__ import annotations
 
 import pytest
 from httpx import AsyncClient
 
 
-@pytest.mark.asyncio
-async def test_health_returns_200(client: AsyncClient) -> None:
-    """Basic health check should always return 200."""
+async def test_health_always_returns_200(client: AsyncClient) -> None:
     response = await client.get("/api/v1/health")
     assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "healthy"
+
+
+async def test_health_response_shape(client: AsyncClient) -> None:
+    data = (await client.get("/api/v1/health")).json()
+    # status is "healthy" or "degraded" depending on Redis availability in CI
+    assert data["status"] in ("healthy", "degraded")
     assert "version" in data
     assert "environment" in data
-    assert "timestamp" in data
+    assert "db" in data
+    assert "redis" in data
 
 
-@pytest.mark.asyncio
 async def test_health_version_matches_config(client: AsyncClient) -> None:
     from app.core.config import settings
-    response = await client.get("/api/v1/health")
-    assert response.json()["version"] == settings.APP_VERSION
+    data = (await client.get("/api/v1/health")).json()
+    assert data["version"] == settings.APP_VERSION
