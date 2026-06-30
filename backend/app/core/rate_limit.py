@@ -1,7 +1,7 @@
-from __future__ import annotations
-
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+
+from app.core.config import settings
 
 
 def get_rate_limit_key(request):
@@ -17,4 +17,11 @@ def get_rate_limit_key(request):
     return get_remote_address(request)
 
 
-limiter = Limiter(key_func=get_rate_limit_key)
+# Redis-backed storage so counters are shared across gunicorn workers.
+# In-memory storage (the default) gives each worker process its own counter,
+# which means --workers 2 effectively doubles the allowed request rate since
+# requests are load-balanced across processes.
+limiter = Limiter(
+    key_func=get_rate_limit_key,
+    storage_uri=settings.REDIS_URL,
+)
