@@ -1,5 +1,8 @@
 # EchoRoom
 
+[![Backend Tests](https://github.com/RishiChalana/EchoRoom/actions/workflows/backend-tests.yml/badge.svg)](https://github.com/RishiChalana/EchoRoom/actions/workflows/backend-tests.yml)
+[![Frontend Build](https://github.com/RishiChalana/EchoRoom/actions/workflows/frontend-build.yml/badge.svg)](https://github.com/RishiChalana/EchoRoom/actions/workflows/frontend-build.yml)
+
 **Real-time AI communication coaching.** Speak into your mic and EchoRoom transcribes you live, tracks how engaging your delivery is as you talk, and generates an AI coaching report the moment you finish — with specific, evidence-backed feedback on what worked and what to fix.
 
 Built for anyone who has to hold an audience: educators, founders pitching, sales reps, conference speakers. The problem it solves is simple — **you get no feedback while you're actually speaking, and only generic feedback afterward.** EchoRoom gives you a live engagement signal during the session and a concrete, per-segment coaching breakdown after it.
