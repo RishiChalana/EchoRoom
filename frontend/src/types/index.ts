@@ -115,3 +115,19 @@ export interface SessionStateUpdate {
   clarity_avg: number | null;
   latest_transcript: string | null;
 }
+
+// ── Transcript recovery (GET /sessions/{id}/transcript) ───────────────────────
+
+export interface RecoveredTranscriptChunk {
+  chunk_id: string;
+  session_id: string;
+  text: string;
+  language: string;
+  no_speech_prob: number;
+  created_at: string;
+}
+
+export interface TranscriptRecoveryResponse {
+  transcript_chunks: RecoveredTranscriptChunk[];
+  latest_engagement_avg: number | null;
+}

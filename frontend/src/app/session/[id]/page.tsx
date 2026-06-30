@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAppStore } from "@/store";
 import { useSession as useWSSession } from "@/hooks/useSession";
+import type { ConnectionState } from "@/hooks/useSession";
 import type { TranscriptChunk } from "@/types";
 
 interface PageProps {
@@ -44,9 +45,13 @@ function engagementLabel(avg: number | null): { label: string; color: string } {
 function TranscriptArea({
   history,
   latestText,
+  connectionState,
+  showGapWarning,
 }: {
   history: TranscriptChunk[];
   latestText: string | null;
+  connectionState: ConnectionState;
+  showGapWarning: boolean;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -55,6 +60,9 @@ function TranscriptArea({
   }, [history.length, latestText]);
 
   const isEmpty = history.length === 0 && !latestText;
+  const isReconnecting =
+    connectionState === "reconnecting" || connectionState === "disconnected";
+  const isConnected = connectionState === "connected";
 
   return (
     <div
@@ -64,7 +72,11 @@ function TranscriptArea({
     >
       {isEmpty ? (
         <p className="flex h-full items-center justify-center font-sans text-[16px] text-[#444444]">
-          Begin recording to start transcription.
+          {isReconnecting
+            ? "Reconnecting — your audio is being saved and will sync automatically."
+            : showGapWarning && isConnected
+            ? "Connection restored — there may be a brief gap in your transcript during the outage."
+            : "Begin recording to start transcription."}
         </p>
       ) : (
         <div className="space-y-4">
@@ -98,6 +110,16 @@ function TranscriptArea({
                 {latestText}
               </p>
             </div>
+          )}
+          {isReconnecting && (
+            <p className="mt-4 text-center font-sans text-[16px] text-[#444444]">
+              Reconnecting — your audio is being saved and will sync automatically.
+            </p>
+          )}
+          {showGapWarning && isConnected && (
+            <p className="mt-4 text-center font-sans text-[16px] text-[#444444]">
+              Connection restored — there may be a brief gap in your transcript during the outage.
+            </p>
           )}
         </div>
       )}
@@ -170,7 +192,15 @@ export default function SessionPage({ params }: PageProps) {
     transcriptHistory,
     latestTranscript,
   } = useAppStore();
-  const { sendAudio } = useWSSession(params.id);
+  const {
+    sendAudio,
+    resetAudioBuffer,
+    connectionState,
+    reconnectCount,
+    showGapWarning,
+    markIntentionalDisconnect,
+    retryConnection,
+  } = useWSSession(params.id);
 
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -200,7 +230,10 @@ export default function SessionPage({ params }: PageProps) {
     recorderRef.current?.stream.getTracks().forEach((t) => t.stop());
     recorderRef.current = null;
     setRecording(false);
-  }, []);
+    // Clear the audio buffer so chunks from this MediaRecorder session aren't
+    // mixed with the next session's WebM stream on a future reconnect.
+    resetAudioBuffer();
+  }, [resetAudioBuffer]);
 
   const toggleRecording = useCallback(() => {
     if (recording) stopRecording();
@@ -209,15 +242,38 @@ export default function SessionPage({ params }: PageProps) {
 
   const handleEnd = useCallback(async () => {
     stopRecording();
+    // Flag intentional disconnect BEFORE the PATCH call so that when navigation
+    // unmounts this component and the WS closes, the onclose handler does not
+    // schedule a reconnect attempt.
+    markIntentionalDisconnect();
     try {
       await endSession(params.id);
       router.push(`/report/${params.id}`);
     } catch (err) {
       console.error("[EchoRoom] Failed to end session:", err);
     }
-  }, [params.id, endSession, router, stopRecording]);
+  }, [params.id, endSession, router, stopRecording, markIntentionalDisconnect]);
 
   const { label: engLabel, color: engColor } = engagementLabel(engagementAvg);
+
+  // ── Derived connection indicator ──────────────────────────────────────────
+  const isConnected = connectionState === "connected";
+  const isFailed = connectionState === "failed";
+  const isReconnecting = connectionState === "reconnecting";
+  const connDotClass =
+    connectionState === "reconnecting"
+      ? "animate-rec-pulse h-2 w-2 rounded-full bg-[#f59e0b]"
+      : connectionState === "connecting"
+      ? "h-2 w-2 rounded-full bg-[#f59e0b]"
+      : "h-2 w-2 rounded-full bg-[#ef4444]"; // disconnected / failed
+  const connLabel =
+    connectionState === "reconnecting"
+      ? `RECONNECTING... (${reconnectCount})`
+      : connectionState === "connecting"
+      ? "CONNECTING..."
+      : connectionState === "disconnected"
+      ? "CONNECTION LOST"
+      : "CONNECTION FAILED";
 
   return (
     <div
@@ -227,19 +283,31 @@ export default function SessionPage({ params }: PageProps) {
       {/* Top pill */}
       <div className="fixed left-1/2 top-5 z-30 flex -translate-x-1/2 items-center gap-0 rounded-xl border border-[#2a2a2a] bg-[#1a1a1a] px-5"
         style={{ height: 44 }}>
-        {/* Recording indicator */}
+
+        {/* Recording / connection indicator — show connection status when not fully connected */}
         <div className="flex items-center gap-2 pr-4">
-          <span
-            className={recording ? "animate-rec-pulse h-2 w-2 rounded-full bg-[#ef4444]" : "h-2 w-2 rounded-full bg-[#444444]"}
-          />
-          <span className="font-label text-[12px] font-medium uppercase tracking-wide text-[#f0f0f0]">
-            {recording ? "RECORDING" : "READY"}
-          </span>
+          {isConnected ? (
+            <>
+              <span
+                className={recording ? "animate-rec-pulse h-2 w-2 rounded-full bg-[#ef4444]" : "h-2 w-2 rounded-full bg-[#444444]"}
+              />
+              <span className="font-label text-[12px] font-medium uppercase tracking-wide text-[#f0f0f0]">
+                {recording ? "RECORDING" : "READY"}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className={connDotClass} />
+              <span className="font-label text-[12px] font-medium uppercase tracking-wide text-[#f0f0f0]">
+                {connLabel}
+              </span>
+            </>
+          )}
         </div>
 
         <div className="mx-3 h-4 w-px bg-[#2a2a2a]" />
 
-        {/* Timer */}
+        {/* Timer — always runs locally; display is not paused during reconnect */}
         <span className="font-mono text-[14px] text-[#888888]">{timer}</span>
 
         <div className="mx-3 h-4 w-px bg-[#2a2a2a]" />
@@ -248,12 +316,27 @@ export default function SessionPage({ params }: PageProps) {
         <span className="font-label text-[12px] font-medium uppercase tracking-wide" style={{ color: engColor }}>
           {engLabel}
         </span>
+
+        {/* "Try Again" button — only shown when reconnection has permanently failed */}
+        {isFailed && (
+          <>
+            <div className="mx-3 h-4 w-px bg-[#2a2a2a]" />
+            <button
+              onClick={retryConnection}
+              className="flex h-7 items-center rounded-lg border border-[#3a3a3a] bg-[#2a2a2a] px-3 font-label text-[12px] font-medium uppercase tracking-wide text-[#f0f0f0] transition-colors hover:bg-[#333333]"
+            >
+              Try Again
+            </button>
+          </>
+        )}
       </div>
 
       {/* Transcript */}
       <TranscriptArea
         history={transcriptHistory}
         latestText={latestTranscript}
+        connectionState={connectionState}
+        showGapWarning={showGapWarning}
       />
 
       {/* Bottom controls */}

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import type {
+  RecoveredTranscriptChunk,
   Session,
   SessionReport,
   SessionStateUpdate,
@@ -21,6 +22,7 @@ interface SessionSlice {
   loadSession: (sessionId: string) => Promise<Session>;
   endSession: (sessionId: string) => Promise<void>;
   updateFromStateEvent: (update: SessionStateUpdate) => void;
+  recoverTranscriptHistory: (chunks: RecoveredTranscriptChunk[]) => void;
   resetSession: () => void;
 }
 
@@ -86,6 +88,26 @@ export const useAppStore = create<AppStore>()(
         }
 
         set(patch);
+      },
+
+      recoverTranscriptHistory: (chunks: RecoveredTranscriptChunk[]) => {
+        const history = get().transcriptHistory;
+        // Count-based dedup: history has N chunks already rendered from the WS stream.
+        // Recovery returns M total chunks ordered by created_at. Append only the new ones.
+        const newChunks = chunks.slice(history.length).map(
+          (c): TranscriptChunk => ({
+            chunk_id: c.chunk_id,
+            session_id: c.session_id,
+            text: c.text,
+            words: [],
+            language: c.language,
+            avg_logprob: 0,
+            no_speech_prob: c.no_speech_prob,
+          })
+        );
+        if (newChunks.length > 0) {
+          set({ transcriptHistory: [...history, ...newChunks] });
+        }
       },
 
       resetSession: () => {

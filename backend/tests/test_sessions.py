@@ -1,12 +1,15 @@
-"""Session endpoint tests — creation, ownership isolation, deletion.
+"""Session endpoint tests — creation, ownership isolation, deletion, transcript recovery.
 
 Regression test included: the old X-User-Email trust header must have no effect
 now that auth is JWT-based.
 """
 from __future__ import annotations
 
+import uuid as uuid_mod
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 INTERNAL_SECRET = "test-secret-for-pytest-only"
 ISSUE_TOKEN_URL = "/api/v1/auth/internal/issue-token"
@@ -140,3 +143,68 @@ async def test_delete_nonexistent_session_returns_404(client: AsyncClient) -> No
     fake_id = "00000000-0000-0000-0000-000000000000"
     res = await client.delete(f"{SESSIONS_URL}/{fake_id}", headers=headers)
     assert res.status_code == 404
+
+
+# ── Transcript recovery ────────────────────────────────────────────────────────
+
+
+async def test_get_transcript_empty_returns_empty_list(client: AsyncClient) -> None:
+    headers = await _auth_headers(client, "transc_empty@test.com")
+    created = await client.post(SESSIONS_URL, json={}, headers=headers)
+    assert created.status_code == 201
+    session_id = created.json()["id"]
+
+    res = await client.get(f"{SESSIONS_URL}/{session_id}/transcript", headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert data["transcript_chunks"] == []
+    assert data["latest_engagement_avg"] is None
+
+
+async def test_get_transcript_returns_persisted_chunks(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    from app.models.agent_event import AgentEvent
+
+    headers = await _auth_headers(client, "transc_chunks@test.com")
+    created = await client.post(SESSIONS_URL, json={}, headers=headers)
+    assert created.status_code == 201
+    session_id = created.json()["id"]
+
+    # Insert a transcript_chunk event directly (same session as client — same db_session via fixture)
+    event = AgentEvent(
+        session_id=uuid_mod.UUID(session_id),
+        chunk_id="test-chunk-1",
+        agent_name="transcript",
+        event_type="transcript_chunk",
+        payload={"text": "Hello world", "language": "en", "no_speech_prob": 0.01},
+    )
+    db_session.add(event)
+    await db_session.flush()
+
+    res = await client.get(f"{SESSIONS_URL}/{session_id}/transcript", headers=headers)
+    assert res.status_code == 200
+    data = res.json()
+    assert len(data["transcript_chunks"]) == 1
+    assert data["transcript_chunks"][0]["text"] == "Hello world"
+    assert data["transcript_chunks"][0]["chunk_id"] == "test-chunk-1"
+    assert data["transcript_chunks"][0]["language"] == "en"
+
+
+async def test_get_transcript_404_for_nonexistent_session(client: AsyncClient) -> None:
+    headers = await _auth_headers(client, "transc_404@test.com")
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    res = await client.get(f"{SESSIONS_URL}/{fake_id}/transcript", headers=headers)
+    assert res.status_code == 404
+
+
+async def test_get_transcript_403_for_wrong_user(client: AsyncClient) -> None:
+    headers_a = await _auth_headers(client, "transc_owner@test.com")
+    headers_b = await _auth_headers(client, "transc_intruder@test.com")
+
+    created = await client.post(SESSIONS_URL, json={}, headers=headers_a)
+    assert created.status_code == 201
+    session_id = created.json()["id"]
+
+    res = await client.get(f"{SESSIONS_URL}/{session_id}/transcript", headers=headers_b)
+    assert res.status_code == 403
