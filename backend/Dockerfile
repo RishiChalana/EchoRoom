@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     ffmpeg \
     libpq-dev \
+    postgresql-client \
     curl \
     && rm -rf /var/lib/apt/lists/*
 

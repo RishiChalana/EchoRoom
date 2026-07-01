@@ -31,7 +31,13 @@ url = url.replace('+asyncpg','').replace('+psycopg2','')
 p = urlparse(url)
 print(p.port or 5432)
 ")
-    until pg_isready -h "$DB_HOST" -p "$DB_PORT" -t 1 > /dev/null 2>&1; do
+    until python3 -c "
+import psycopg2, os
+from urllib.parse import urlparse
+url = os.environ.get('DATABASE_URL', '').replace('+asyncpg', '').replace('+psycopg2', '')
+p = urlparse(url)
+psycopg2.connect(host=p.hostname, port=p.port or 5432, dbname=(p.path or '/echoroom').lstrip('/'), user=p.username, password=p.password, connect_timeout=1).close()
+" > /dev/null 2>&1; do
         echo "   PostgreSQL not ready — retrying in 2s..."
         sleep 2
     done
@@ -57,7 +63,14 @@ url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
 p = urlparse(url)
 print(p.port or 6379)
 ")
-    until redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" ping > /dev/null 2>&1; do
+    until python3 -c "
+import socket, os
+from urllib.parse import urlparse
+url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
+p = urlparse(url)
+s = socket.create_connection((p.hostname or 'localhost', p.port or 6379), timeout=1)
+s.close()
+" > /dev/null 2>&1; do
         echo "   Redis not ready — retrying in 2s..."
         sleep 2
     done
