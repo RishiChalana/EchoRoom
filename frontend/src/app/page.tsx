@@ -6,8 +6,11 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { getHealth } from "@/lib/api";
 
-// Three.js sphere loaded client-side only
-const SphereScene = dynamic(() => import("@/components/landing/SphereScene"), { ssr: false });
+// Three.js sphere — dynamic import keeps ~500KB Three.js out of the initial bundle
+const SphereScene = dynamic(() => import("@/components/landing/SphereScene"), {
+  ssr: false,
+  loading: () => <div className="absolute inset-0" />,
+});
 
 // ── Custom cursor ─────────────────────────────────────────────────────────────
 function CustomCursor() {

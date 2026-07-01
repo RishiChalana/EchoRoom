@@ -3,158 +3,248 @@
 [![Backend Tests](https://github.com/RishiChalana/EchoRoom/actions/workflows/backend-tests.yml/badge.svg)](https://github.com/RishiChalana/EchoRoom/actions/workflows/backend-tests.yml)
 [![Frontend Build](https://github.com/RishiChalana/EchoRoom/actions/workflows/frontend-build.yml/badge.svg)](https://github.com/RishiChalana/EchoRoom/actions/workflows/frontend-build.yml)
 
-**Real-time AI communication coaching.** Speak into your mic and EchoRoom transcribes you live, tracks how engaging your delivery is as you talk, and generates an AI coaching report the moment you finish — with specific, evidence-backed feedback on what worked and what to fix.
+EchoRoom is a real-time AI communication coaching platform that transcribes your speech, analyzes engagement as you talk, and delivers a structured coaching report with precision rewrite suggestions when you finish.
 
-Built for anyone who has to hold an audience: educators, founders pitching, sales reps, conference speakers. The problem it solves is simple — **you get no feedback while you're actually speaking, and only generic feedback afterward.** EchoRoom gives you a live engagement signal during the session and a concrete, per-segment coaching breakdown after it.
+## Live Demo
 
----
-
-## What it does
-
-- **Live transcription** — streams mic audio over a WebSocket and transcribes it in near real-time with faster-whisper.
-- **Live engagement tracking** — every transcript chunk is scored by a fast local heuristic and pushed to an on-screen gauge as you speak.
-- **End-of-session AI coaching** — when you stop, a LangGraph agent reads the full session, analyzes clarity, classifies each segment, and produces a scored report with prioritized, evidence-backed insights and concrete rewrite suggestions.
-- **Always produces a report** — the coaching pipeline degrades gracefully: if the LLM is unavailable or rate-limited, it falls back to deterministic heuristics so a useful report is *always* generated.
-
----
+**[echo-room-ten.vercel.app](https://echo-room-ten.vercel.app)**
+Sign in with Google or create an account to try it.
 
 ## Architecture
 
-EchoRoom is an event-driven, multi-agent system. Agents never call each other directly — they communicate over **Redis pub/sub**, which decouples them and lets fast local work (engagement) run independently of slow network work (LLM calls).
-
 ```
-[Browser - MediaRecorder]
-        |  WebSocket: buffered WebM/Opus audio
-        v
-+---------------------------------------------------------+
-|  FastAPI  (WebSocket ingest + REST API)                 |
-+---------------------------------------------------------+
-        |  audio chunk -> Celery (local queue)
-        v
-[TranscriptAgent]   faster-whisper (tiny.en, CPU int8)
-                    publishes -> redis: transcript:{id}
-        |
-        v  (chained)
-[EngagementAgent]   local heuristic (<50ms)
-                    publishes -> redis: engagement:{id}
-        |
-        v
-[OrchestratorAgent] subscribes transcript + engagement,
-                    aggregates running averages,
-                    publishes -> redis: state:{id}
-                    -> WebSocket -> Browser (live gauges)
+┌──────────────────────────────────────────────────────────┐
+│  Browser (Next.js)                                       │
+│  MediaRecorder → WebM/Opus chunks                        │
+└──────────────────┬───────────────────────────────────────┘
+                   │ WebSocket (binary audio frames)
+                   ▼
+┌──────────────────────────────────────────────────────────┐
+│  FastAPI  (WebSocket ingest + REST API)                  │
+│  stream.py accumulates audio → Redis audio:{id}          │
+└──────┬───────────────────────────────┬───────────────────┘
+       │ Celery task (local queue)     │ Redis pub/sub state:{id}
+       ▼                               ▼
+┌─────────────────────┐   ┌────────────────────────────────┐
+│  Celery Worker      │   │  OrchestratorAgent             │
+│  TranscriptAgent    │   │  subscribes transcript:{id}    │
+│  faster-whisper     │   │  + engagement:{id}             │
+│  (tiny.en, int8)    │   │  aggregates → state:{id}       │
+│        │            │   │  → WebSocket → Browser         │
+│        ▼            │   └────────────────────────────────┘
+│  EngagementAgent    │
+│  heuristic <50ms    │──► Redis: transcript:{id}
+│                     │──► Redis: engagement:{id}
+└─────────────────────┘
 
-   ----------------  on "End Session"  ----------------
+── On "End Session" ──────────────────────────────────────────
 
-[CoachAgent]  Celery (coach queue) — LangGraph pipeline:
-      fetch_events
-        -> segment_analyzer       (Gemini 2.5 Flash)
-        -> insight_synthesizer    (Gemini 2.5 Flash)
-        -> rewrite_generator      (Gemini 2.5 Flash)
-        -> save_report
-      - reads the append-only agent_events log for the session
-      - runs ONE batched clarity call over the full transcript
-      - writes SessionReport to PostgreSQL, signals report_ready:{id}
+FastAPI signals Celery coach queue
+       │
+       ▼
+┌──────────────────────────────────────────────────────────┐
+│  Celery Coach Worker  (LangGraph pipeline)               │
+│                                                          │
+│  ClarityAgent ──────────────────► Gemini 2.5 Flash       │
+│  (one batched call, full transcript)                     │
+│                                                          │
+│  CoachAgent (LangGraph):                                 │
+│    fetch_events                                          │
+│      → segment_analyzer ───────► Gemini 2.5 Flash       │
+│      → insight_synthesizer ────► Gemini 2.5 Flash       │
+│      → rewrite_generator ──────► Gemini 2.5 Flash       │
+│      → save_report                                       │
+│          ├─ reads audio from Redis audio:{id}            │
+│          └─► PostgreSQL  session_reports                 │
+└──────────────────────────────────────────────────────────┘
+
+All services: PostgreSQL (sessions, agent_events, reports, users)
+              Redis (Celery broker + agent pub/sub + report cache)
 ```
 
-**Two databases, each for what it's good at:**
+## Tech Stack
 
-| Store | Role |
-|---|---|
-| **PostgreSQL** | Sessions, append-only `agent_events` audit log, final `session_reports` |
-| **Redis** | Agent pub/sub channels, Celery broker, live session state |
+### Backend
 
-**Six services** under Docker Compose: `postgres`, `redis`, `api`, `worker` (transcription + engagement), `worker_coach` (coaching pipeline), `frontend`.
+| Layer | Technology | Purpose |
+|---|---|---|
+| API Framework | FastAPI + Gunicorn/Uvicorn | Async REST + WebSocket |
+| Speech-to-Text | faster-whisper (Whisper tiny.en) | Real-time transcription |
+| LLM | Gemini 2.5 Flash | Coaching analysis + rewrites |
+| Agent Orchestration | LangGraph | Stateful coaching pipeline |
+| Structured Output | instructor | Type-safe LLM responses |
+| Task Queue | Celery 5.4 | Async transcription + coaching workers |
+| Message Broker | Redis 7 | Celery broker + agent pub/sub + report cache |
+| Database | PostgreSQL 16 + SQLAlchemy 2.0 | Sessions, reports, users |
+| Migrations | Alembic | Schema versioning |
+| Auth | NextAuth.js + bcrypt | OAuth + email/password |
+| Monitoring | Sentry | Error tracking |
+| Rate Limiting | slowapi + Redis | Per-user request limits |
+| Testing | pytest + pytest-asyncio | 64 tests, real DB |
 
----
+### Frontend
 
-## Engineering decisions
+| Layer | Technology | Purpose |
+|---|---|---|
+| Framework | Next.js 14 (App Router) | SSR + client components |
+| Language | TypeScript (strict) | Type safety throughout |
+| Styling | Tailwind CSS + CSS variables | Design token system |
+| State | Zustand | Session + transcript state |
+| Charts | Recharts | Engagement timeline + dashboard |
+| Auth | NextAuth.js | Google OAuth + credentials |
+| Error | Sentry | Client-side error capture |
+| 3D | Three.js | Landing page sphere (lazy-loaded) |
 
-The parts worth talking about are the tradeoffs, not the feature list.
+## AI Pipeline
 
-**LLM calls never touch the async event loop.** FastAPI handles WebSocket and REST concurrency; every LLM and transcription call runs in a **Celery** worker instead. A multi-second blocking LLM call inside an async request handler would stall the event loop for every other connected client. Offloading to Celery keeps the API responsive under load.
+1. User speaks → browser MediaRecorder captures WebM/Opus audio in 250ms chunks
+2. Chunks stream via WebSocket → FastAPI accumulates raw audio and publishes to Redis `transcript:{session_id}`
+3. Celery Worker subscribes → faster-whisper transcribes each chunk → publishes text + engagement scores to Redis
+4. OrchestratorAgent aggregates rolling state → pushes live updates to browser over the same WebSocket
+5. Session ends → Celery Coach Worker dispatches:
+   - **ClarityAgent**: ONE batched Gemini call on full transcript → vocabulary/structure/conciseness scores
+   - **CoachAgent** (LangGraph): segment analysis → insight synthesis → precision rewrites → saved to PostgreSQL
+6. Report page polls every 3s until `report_ready` → displays score/100, engagement timeline, insights, precision edits, and audio playback
 
-**The coaching pipeline always produces a report.** Each LLM stage (segment analysis, insight synthesis, rewrites, clarity) is wrapped so that on *any* failure — rate limit, timeout, malformed output — it falls back to a deterministic heuristic built from data already in the database. A demo that shows a spinner when an external API hiccups is worse than no demo; this system degrades to a still-useful report instead of failing.
+## Features
 
-**Clarity is analyzed once per session, not per chunk.** The original design called the LLM on every 3-second transcript chunk. On a constrained free-tier API that produced a storm of rate-limit errors and added no value — fragmentary 3-second clips are poor context for judging clarity. The system was redesigned so clarity runs as a **single batched call over the full transcript** at session end: fewer calls, better context, no rate-limit storm.
+| Feature | Status | Notes |
+|---|---|---|
+| Real-time transcription | ✅ Live | faster-whisper tiny.en |
+| Engagement scoring | ✅ Live | Heuristic (filler ratio + TTR) |
+| Room-aware coaching | ✅ Live | Technical / Interview / Presentation / General |
+| Precision edit suggestions | ✅ Live | Gemini rewrites |
+| Session audio playback | ✅ Live | Stored as WebM in PostgreSQL |
+| Session sharing | ✅ Live | Public/private toggle per report |
+| Google OAuth | ✅ Live | NextAuth.js |
+| Email/password auth | ✅ Live | bcrypt |
+| WebSocket reconnection | ✅ Live | Exponential backoff, audio buffering |
+| Report caching | ✅ Live | Redis, 1-hour TTL |
+| Rate limiting | ✅ Live | Redis-backed, per-user |
+| Error monitoring | ✅ Live | Sentry (backend + frontend) |
+| CI/CD | ✅ Live | GitHub Actions (backend tests + frontend build) |
+| Real-time WPM | ✅ Live | Updates every transcript chunk |
 
-**The event log is append-only.** Every agent output is persisted to `agent_events` as an immutable row (never updated or deleted). The coach reconstructs the entire session from this log at report time, and the per-chunk engagement chart in the report is rendered directly from it — not fabricated from an average.
+## Local Development
 
-**Sync vs. async database access is deliberate.** The API uses an async (asyncpg) engine. The Celery workers use a **synchronous** (psycopg2) engine, because asyncpg connections are bound to the event loop that created them — and a Celery prefork worker runs a fresh `asyncio` loop per task, which would otherwise reuse a stale, loop-bound connection and crash. Matching the driver to the execution model fixed an intermittent "event loop is closed" failure.
+**Prerequisites:**
+- Docker + Docker Compose
+- Node.js 20+
+- Python 3.12
+- A Google AI Studio API key (for Gemini)
+- Google OAuth credentials (optional — email/password works without)
 
-**One service owns migrations.** All three backend services share an image and entrypoint. Running `alembic upgrade head` from each on startup caused a race on the `alembic_version` table. Migrations are now gated to the `api` service only; the workers wait on its healthcheck before starting.
-
----
-
-## Tech stack
-
-**Backend** — Python 3.11, FastAPI 0.115, PostgreSQL 16, Redis 7, SQLAlchemy 2.0 (async + sync engines), Alembic, Celery 5.4, structlog.
-
-**AI** — faster-whisper (Whisper tiny.en, CPU int8), Google Gemini 2.5 Flash (clarity + coaching via the OpenAI-compatible endpoint), [instructor](https://github.com/jxnl/instructor) for validated structured LLM output, LangGraph 0.2 for the coaching pipeline.
-
-**Frontend** — Next.js 14 (App Router), TypeScript (strict), Tailwind CSS 3, Zustand 5, Recharts 2, Three.js (landing sphere, lazy-loaded).
-
-**Auth** — NextAuth.js v4 (Google + GitHub OAuth, JWE sessions).
-
-**Infra** — Docker Compose (six services). Production targets: Railway (backend), Vercel (frontend).
-
----
-
-## Quickstart
-
-**Prerequisites:** Docker + Docker Compose, and a [Google Gemini API key](https://aistudio.google.com) (free tier works).
+**1. Clone and configure environment:**
 
 ```bash
-# 1. Clone
 git clone https://github.com/RishiChalana/EchoRoom.git
 cd EchoRoom
-
-# 2. Configure
 cp .env.example .env
-#   fill in GEMINI_API_KEY, NEXTAUTH_SECRET, and OAuth credentials
-
-# 3. Run
-docker compose up --build
+# Edit .env and add your GEMINI_API_KEY
 ```
 
-Open **http://localhost:3000**, sign in, create a session, allow mic access, and start speaking. End the session to generate your coaching report.
+**2. Start backend services:**
 
-| Service | URL |
-|---|---|
-| Frontend | http://localhost:3000 |
-| API | http://localhost:8000 |
-| API docs | http://localhost:8000/docs |
-
-> **Note on the LLM:** EchoRoom uses Gemini's free tier by default. The coaching pipeline falls back to heuristics if the key is missing or rate-limited, so the app still runs without a key (with reduced insight quality).
-
----
-
-## Project layout
-
-```
-backend/
-  app/
-    agents/        transcript, engagement, clarity, orchestrator, coach, _persist
-    api/v1/        stream (WebSocket), sessions, reports, health
-    workers/       celery_app, tasks (transcribe_chunk, classify_engagement, process_coach_session)
-    models/        session, agent_event (append-only), session_report
-    schemas/       pydantic models
-    prompts/       coach + clarity system prompts
-    core/          config, database engines
-frontend/
-  src/
-    app/           pages: landing, login, dashboard, rooms, session, report, library, profile, settings
-    components/    layout (TopNav, AuthedLayout), landing (SphereScene)
-    hooks/         useSession (WebSocket lifecycle)
-    store/         Zustand (session slice + report slice)
-    lib/           api client, utils
-    types/         shared TypeScript types
-docker-compose.yml six services
-FINAL_PROJECT_REPORT.md  full audit: architecture, security, performance, cleanup summary
+```bash
+docker compose up -d
 ```
 
----
+This starts: PostgreSQL, Redis, FastAPI API, Celery worker (transcription), Celery coach worker (LangGraph).
 
-## Status
+**3. Start frontend:**
 
-EchoRoom is a complete, working MVP: live transcription, real-time engagement, resilient AI coaching reports, and a real per-session engagement chart — all running locally under Docker. It is a portfolio project, not a hosted product.
+```bash
+cd frontend
+npm install
+# Create .env.local with:
+# NEXT_PUBLIC_API_URL=http://localhost:8000
+# NEXTAUTH_SECRET=$(openssl rand -hex 32)
+# NEXTAUTH_URL=http://localhost:3000
+npm run dev
+```
+
+**4. Open http://localhost:3000**
+
+**Running tests:**
+
+```bash
+# Create test database (first time only)
+docker compose exec postgres psql -U echoroom -c \
+  "CREATE DATABASE echoroom_test;"
+
+cd backend
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+python -m pytest -v
+```
+
+Output: 64 passed in ~4s
+
+## Project Structure
+
+```
+EchoRoom/
+├── backend/
+│   ├── app/
+│   │   ├── agents/          # AI pipeline agents
+│   │   │   ├── transcript_agent.py   # faster-whisper
+│   │   │   ├── engagement_agent.py   # heuristic scorer
+│   │   │   ├── clarity_agent.py      # Gemini clarity
+│   │   │   ├── coach_agent.py        # LangGraph pipeline
+│   │   │   └── orchestrator_agent.py # WebSocket relay
+│   │   ├── api/v1/          # FastAPI routes
+│   │   ├── models/          # SQLAlchemy models
+│   │   ├── workers/         # Celery configuration
+│   │   └── core/            # Config, auth, Redis, DB
+│   ├── tests/               # 64 pytest tests
+│   └── alembic/             # Database migrations
+├── frontend/
+│   ├── src/
+│   │   ├── app/             # Next.js App Router pages
+│   │   ├── components/      # Shared UI components
+│   │   ├── hooks/           # useSession, useSessionSocket
+│   │   └── lib/             # API client, auth helpers
+│   └── sentry.*.config.ts   # Error monitoring
+└── .github/workflows/       # CI/CD pipelines
+```
+
+## Deployment
+
+Frontend deployed on Vercel (automatic deploys from main branch). Backend (API + 2 Celery workers + PostgreSQL + Redis) deployed on Railway with service-level environment variable isolation.
+
+### Environment Variables
+
+| Variable | Service | Required | Description |
+|---|---|---|---|
+| `DATABASE_URL` | Railway API + Workers | Yes | PostgreSQL connection string |
+| `REDIS_URL` | Railway API + Workers | Yes | Redis connection string |
+| `SECRET_KEY` | Railway API | Yes | FastAPI signing secret |
+| `GEMINI_API_KEY` | Railway API + Coach Worker | Yes | Google AI Studio key |
+| `NEXTAUTH_SECRET` | Railway API | Yes | Must match Vercel value |
+| `CORS_ORIGINS` | Railway API | Yes | JSON array of allowed origins |
+| `SENTRY_DSN` | Railway all services | No | Error monitoring |
+| `ENVIRONMENT` | Railway all services | Yes | Set to `production` |
+| `RUN_MIGRATIONS` | Railway API | Yes | Set to `true` on api, `false` on workers |
+| `NEXTAUTH_URL` | Vercel | Yes | Canonical frontend URL |
+| `NEXT_PUBLIC_API_URL` | Vercel | Yes | Public Railway API URL |
+| `NEXTAUTH_SECRET` | Vercel | Yes | Must match Railway value |
+| `GOOGLE_CLIENT_ID` | Vercel | No | Google OAuth |
+| `GOOGLE_CLIENT_SECRET` | Vercel | No | Google OAuth |
+| `NEXT_PUBLIC_SENTRY_DSN` | Vercel | No | Client-side error monitoring |
+
+## Architecture Decisions
+
+**Append-only event log**
+All agent events (transcript chunks, engagement scores) are written to `agent_events` as immutable rows — never updated or deleted. This creates a complete audit trail for every session and lets the coach pipeline reconstruct full session history independently of any other state.
+
+**Batched LLM calls**
+The clarity agent makes ONE Gemini API call at session end with the full transcript, not one call per audio chunk. This avoids 429 rate limit storms and reduces cost by ~95% compared to per-chunk analysis.
+
+**Redis pub/sub for agent communication**
+Agents communicate exclusively via Redis channels, never via direct function calls or shared memory. This means the transcription worker, engagement scorer, and WebSocket relay can scale independently and the system degrades gracefully if any single agent is slow.
+
+**Heuristic fallbacks on every LLM node**
+Every node in the LangGraph coaching pipeline has a deterministic fallback — if Gemini fails, the report still saves with heuristic-derived scores. This means a session report is always generated, even during API outages.
+
+**Redis-backed rate limiting**
+Rate limit counters are stored in Redis rather than in memory, so all Gunicorn worker processes share the same counters. This prevents the multi-worker counter isolation bug where requests spread across workers would never collectively trigger a limit.

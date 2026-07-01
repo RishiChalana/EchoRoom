@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user_optional
 from app.core.database import get_db
 from app.core.rate_limit import limiter
+from app.core.redis import get_redis_client
 from app.models.agent_event import AgentEvent
 from app.models.session import Session
 from app.models.session_report import SessionReport
@@ -125,6 +126,10 @@ async def delete_session(
         await db.delete(report)
     await db.delete(session)
     await db.flush()
+    try:
+        await get_redis_client().delete(f"report:{session_id}")
+    except Exception:
+        pass  # Non-fatal — stale cache will expire naturally
     log.info("Session deleted", session_id=str(session_id))
     return Response(status_code=204)
 

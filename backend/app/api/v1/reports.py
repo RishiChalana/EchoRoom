@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Optional
 from uuid import UUID
 
@@ -13,6 +14,7 @@ from app.core.auth import ALGORITHM, get_current_user_optional
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import limiter
+from app.core.redis import get_redis_client
 from app.models.agent_event import AgentEvent
 from app.models.session import Session
 from app.models.session_report import SessionReport
@@ -20,6 +22,8 @@ from app.schemas.session import EngagementTimelinePoint, SessionReportResponse
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 log = structlog.get_logger(__name__)
+
+REPORT_CACHE_TTL = 3600  # 1 hour — reports are immutable once generated
 
 
 async def _build_engagement_timeline(
@@ -69,7 +73,7 @@ async def get_report(
     db: AsyncSession = Depends(get_db),
     current_user: Optional[dict] = Depends(get_current_user_optional),
 ):
-    # 1) The session must exist.
+    # 1) The session must exist and ownership must be verified.
     session_result = await db.execute(select(Session).where(Session.id == session_id))
     session = session_result.scalar_one_or_none()
     if not session:
@@ -87,7 +91,18 @@ async def get_report(
     if session.status == "active":
         raise HTTPException(status_code=409, detail="Session still active")
 
-    # 2) Look up the report row.
+    # 2) Try the Redis cache — reports are immutable once generated.
+    #    We check only after auth so we never bypass ownership.
+    cache_key = f"report:{session_id}"
+    try:
+        cached = await get_redis_client().get(cache_key)
+        if cached:
+            log.info("Report cache hit", session_id=str(session_id))
+            return JSONResponse(content=json.loads(cached))
+    except Exception:
+        pass  # Cache miss or Redis error — fall through to DB
+
+    # 3) Look up the report row.
     report_result = await db.execute(
         select(SessionReport).where(SessionReport.session_id == session_id)
     )
@@ -104,9 +119,14 @@ async def get_report(
             response.engagement_avg = round(response.engagement_avg * 100)
         if response.clarity_avg is not None:
             response.clarity_avg = round(response.clarity_avg * 100)
-        return response
+        response_data = response.model_dump(mode="json")
+        try:
+            await get_redis_client().set(cache_key, json.dumps(response_data), ex=REPORT_CACHE_TTL)
+        except Exception:
+            pass  # Caching failure must never break the response
+        return JSONResponse(content=response_data)
 
-    # 3) No report yet. While processing — or complete-without-report, which
+    # 4) No report yet. While processing — or complete-without-report, which
     # shouldn't happen after the coach's always-save guarantee — tell the client
     # to keep polling.
     if session.status in ("processing", "complete"):

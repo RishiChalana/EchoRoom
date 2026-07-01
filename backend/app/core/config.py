@@ -27,8 +27,8 @@ class Settings(BaseSettings):
 
     # ── Database ──────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgresql+asyncpg://echoroom:echoroom_dev_pass@localhost:5432/echoroom"
-    DATABASE_POOL_SIZE: int = 10
-    DATABASE_MAX_OVERFLOW: int = 20
+    DATABASE_POOL_SIZE: int = 5           # per worker; ×2 workers = 10 total
+    DATABASE_MAX_OVERFLOW: int = 10       # burst headroom per worker
     DATABASE_ECHO: bool = False
 
     @field_validator("DATABASE_URL", mode="before")

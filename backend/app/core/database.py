@@ -25,8 +25,9 @@ engine = create_async_engine(
     echo=settings.DATABASE_ECHO,
     pool_size=settings.DATABASE_POOL_SIZE,
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
-    pool_pre_ping=True,               # recycle stale connections
-    pool_recycle=3600,                # recycle connections every hour
+    pool_timeout=30,                  # fail fast if no connection available
+    pool_pre_ping=True,               # verify connections before use — Railway kills idle connections after ~5 min
+    pool_recycle=1800,                # recycle connections every 30 min
 )
 
 # ── Session Factory ───────────────────────────────────────────────────────────
