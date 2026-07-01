@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { Clock, Flame, Brain } from "lucide-react";
 import { AuthedLayout } from "@/components/layout/AuthedLayout";
-import { getSessions } from "@/lib/api";
+import { getSessions, updateUserName } from "@/lib/api";
 import type { Session } from "@/types";
 
 function formatTotalTime(totalSeconds: number): string {
@@ -46,6 +46,50 @@ export default function ProfilePage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // ── Inline name edit ────────────────────────────────────────────────────────
+  // NextAuth session.user.name reflects the value at login time (from the
+  // OAuth provider or CredentialsProvider authorize() return value), not the DB.
+  // After a successful PATCH we update displayName locally so the UI reflects
+  // the change immediately without requiring a full session refresh.
+  const [editingName, setEditingName] = useState(false);
+  const [displayName, setDisplayName] = useState<string>(user?.name ?? "");
+  const [nameInput, setNameInput] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Sync displayName when user loads from NextAuth
+  useEffect(() => {
+    if (user?.name && !displayName) setDisplayName(user.name);
+  }, [user?.name, displayName]);
+
+  const handleEditName = () => {
+    setNameInput(displayName);
+    setNameError(null);
+    setEditingName(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const handleCancelName = () => {
+    setEditingName(false);
+    setNameError(null);
+  };
+
+  const handleSaveName = async () => {
+    if (!nameInput.trim()) return;
+    setNameSaving(true);
+    setNameError(null);
+    try {
+      const updated = await updateUserName(nameInput.trim());
+      setDisplayName(updated.name ?? nameInput.trim());
+      setEditingName(false);
+    } catch {
+      setNameError("Failed to save. Please try again.");
+    } finally {
+      setNameSaving(false);
+    }
+  };
+
   useEffect(() => {
     getSessions()
       .then((res) => setSessions(res.sessions))
@@ -80,9 +124,52 @@ export default function ProfilePage() {
           <Initials name={user?.name ?? "U"} />
         )}
         <div>
-          <h1 className="font-display text-[32px] font-bold text-er-ink">
-            {user?.name ?? "Your Profile"}
-          </h1>
+          {/* Name display / edit */}
+          {editingName ? (
+            <div className="flex flex-col gap-2">
+              <input
+                ref={inputRef}
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void handleSaveName();
+                  if (e.key === "Escape") handleCancelName();
+                }}
+                className="w-full rounded border border-er-border px-3 py-1.5 font-display text-[24px] font-bold text-er-ink bg-er-surface focus:border-er-blue focus:outline-none"
+                style={{ borderRadius: 4 }}
+              />
+              {nameError && (
+                <p className="font-sans text-[13px] text-er-red">{nameError}</p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => void handleSaveName()}
+                  disabled={nameSaving}
+                  className="rounded-lg bg-er-btn-bg px-4 py-1.5 font-sans text-[13px] font-medium text-er-btn-text disabled:opacity-60"
+                >
+                  {nameSaving ? "Saving..." : "Save"}
+                </button>
+                <button
+                  onClick={handleCancelName}
+                  className="font-sans text-[13px] text-er-ink-3"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <h1 className="font-display text-[32px] font-bold text-er-ink">
+                {displayName || user?.name || "Your Profile"}
+              </h1>
+              <button
+                onClick={handleEditName}
+                className="font-sans text-[13px] text-er-ink-3 hover:text-er-ink"
+              >
+                Edit
+              </button>
+            </div>
+          )}
           {mostUsedRoom && (
             <div className="mt-2 flex gap-2">
               <span className="rounded border border-er-border bg-er-surface-2 px-3 py-1 font-label text-[13px] text-er-ink-2">
@@ -90,12 +177,6 @@ export default function ProfilePage() {
               </span>
             </div>
           )}
-          <button
-            onClick={() => console.log("[EchoRoom] Edit Profile — coming soon")}
-            className="mt-3 rounded border border-er-border px-3 py-1.5 font-label text-[13px] text-er-ink-3 transition-colors hover:border-er-border-2"
-          >
-            Edit Profile
-          </button>
         </div>
       </div>
 

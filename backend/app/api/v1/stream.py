@@ -114,6 +114,13 @@ async def audio_stream(
     buffer = bytearray()
     last_flush = time.monotonic()
 
+    # Accumulate ALL raw chunks for session-level audio storage (7B-alt path).
+    # audio_data is NOT stored in agent_events (transcript_agent only persists
+    # text), so we buffer the full WebM stream here and write it to Redis at
+    # disconnect. The coach pipeline reads from Redis and persists to
+    # session_reports.audio_data at report-save time.
+    audio_chunks: list[bytes] = []
+
     async def _flush() -> None:
         nonlocal buffer, last_flush
         if not buffer or not header_bytes:
@@ -131,6 +138,7 @@ async def audio_stream(
     try:
         while True:
             raw = await websocket.receive_bytes()
+            audio_chunks.append(raw)  # always accumulate before header check
 
             if not header_bytes:
                 header_bytes = raw
@@ -143,6 +151,17 @@ async def audio_stream(
     except WebSocketDisconnect:
         log.info("WebSocket disconnected", session_id=str(session_id))
         await _flush()
+        if audio_chunks:
+            try:
+                full_audio = b"".join(audio_chunks)
+                await r.set(f"audio:{session_id}", full_audio, ex=3600)
+                log.info(
+                    "Session audio stored in Redis",
+                    session_id=str(session_id),
+                    bytes=len(full_audio),
+                )
+            except Exception as exc:
+                log.warning("Failed to store session audio in Redis", error=str(exc))
     finally:
         reader_task.cancel()
         orchestrator_task.cancel()

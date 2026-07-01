@@ -106,6 +106,8 @@ class CoachState(TypedDict):
     clarity_issues: List[dict]
     clarity_error: Optional[str]
     wpm: Optional[int]
+    audio_data: Optional[bytes]
+    audio_content_type: str
 
 
 class CoachAgent:
@@ -446,6 +448,26 @@ class CoachAgent:
             overall_score = round(state.get("engagement_avg") or 0.5, 2) * 10
         state["overall_score"] = overall_score
 
+        # Read session audio from Redis (stored by the WebSocket handler at disconnect).
+        # By the time _save_report_node runs (after multiple LLM calls), the WS handler
+        # has long since written the audio key. Delete it after reading to free memory.
+        audio_data: Optional[bytes] = None
+        r_sync = redis.from_url(settings.REDIS_URL)
+        try:
+            raw_audio = r_sync.get(f"audio:{state['session_id']}")
+            if raw_audio:
+                audio_data = bytes(raw_audio)
+                r_sync.delete(f"audio:{state['session_id']}")
+                log.info(
+                    "Audio read from Redis",
+                    session_id=state["session_id"],
+                    bytes=len(audio_data),
+                )
+        except Exception as exc:
+            log.warning("Failed to read audio from Redis", error=str(exc), session_id=state["session_id"])
+        finally:
+            r_sync.close()
+
         with SyncSessionFactory() as db:
             # Guard against the retry race: the task has max_retries=1, so a
             # second attempt after a partial failure would hit the UNIQUE
@@ -469,6 +491,8 @@ class CoachAgent:
                     summary=summary,
                     coach_model=f"gemini-2.5-flash ({state.get('audience_profile', 'general')})",
                     wpm=state.get("wpm"),
+                    audio_data=audio_data,
+                    audio_content_type="audio/webm" if audio_data else None,
                 )
                 db.add(report)
 
@@ -510,6 +534,8 @@ class CoachAgent:
             "clarity_issues": [],
             "clarity_error": None,
             "wpm": None,
+            "audio_data": None,
+            "audio_content_type": "audio/webm",
         }
         try:
             result = await self._graph.ainvoke(initial_state)

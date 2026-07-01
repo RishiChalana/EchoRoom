@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, Share2 } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -18,6 +18,7 @@ import {
 import { useAppStore } from "@/store";
 import { useTheme } from "@/components/layout/ThemeProvider";
 import { cn } from "@/lib/utils";
+import { getSessionAudioUrl, setSessionVisibility } from "@/lib/api";
 import type { CoachInsight } from "@/types";
 
 interface PageProps {
@@ -120,6 +121,55 @@ export default function ReportPage({ params }: PageProps) {
   const { theme } = useTheme();
   const [phase, setPhase] = useState<Phase>("polling");
   const [retryKey, setRetryKey] = useState(0);
+
+  // ── Audio player ────────────────────────────────────────────────────────────
+  // starts true; set to false if the audio endpoint returns 404 or any error
+  const [hasAudio, setHasAudio] = useState(true);
+  const { data: sessionData } = useSession();
+  const backendToken = (sessionData as Record<string, unknown> | null)?.backendAccessToken as string | undefined;
+
+  // ── Share popover ────────────────────────────────────────────────────────────
+  const [shareOpen, setShareOpen] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
+  const [copyLabel, setCopyLabel] = useState("Copy link");
+  const shareRef = useRef<HTMLDivElement>(null);
+
+  // Sync isPublic from report once it loads
+  useEffect(() => {
+    // report.session's is_public is not in the SessionReportResponse, but we
+    // track it locally from PATCH responses. Default to false on load.
+    setIsPublic(false);
+  }, [report?.session_id]);
+
+  // Close share popover on outside click
+  useEffect(() => {
+    if (!shareOpen) return;
+    function handler(e: MouseEvent) {
+      if (shareRef.current && !shareRef.current.contains(e.target as Node)) {
+        setShareOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [shareOpen]);
+
+  const handleTogglePublic = async (on: boolean) => {
+    if (!report) return;
+    try {
+      await setSessionVisibility(report.session_id, on);
+      setIsPublic(on);
+    } catch {
+      // keep current state on error
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!report) return;
+    const url = `${window.location.origin}/report/${report.session_id}`;
+    await navigator.clipboard.writeText(url);
+    setCopyLabel("Copied!");
+    setTimeout(() => setCopyLabel("Copy link"), 2000);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -268,6 +318,61 @@ export default function ReportPage({ params }: PageProps) {
             <Download size={14} />
             Export
           </button>
+
+          {/* Share button + popover */}
+          <div className="relative" ref={shareRef}>
+            <button
+              onClick={() => setShareOpen((o) => !o)}
+              className="flex h-9 items-center gap-2 rounded-lg border border-er-border-2 px-3 font-label text-[14px] text-er-ink-2 transition-colors hover:border-er-ink-3 hover:text-er-ink"
+            >
+              <Share2 size={14} />
+              Share
+            </button>
+            {shareOpen && (
+              <div className="absolute right-0 top-11 z-50 w-72 rounded-lg border border-er-border bg-er-surface p-4 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <span className="font-sans text-[14px] font-medium text-er-ink">Public link</span>
+                  <button
+                    onClick={() => void handleTogglePublic(!isPublic)}
+                    className={cn(
+                      "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                      isPublic ? "bg-er-blue" : "bg-er-surface-3",
+                    )}
+                    role="switch"
+                    aria-checked={isPublic}
+                  >
+                    <span
+                      className={cn(
+                        "pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform",
+                        isPublic ? "translate-x-4" : "translate-x-0",
+                      )}
+                    />
+                  </button>
+                </div>
+                {isPublic && (
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      readOnly
+                      value={`${typeof window !== "undefined" ? window.location.origin : ""}/report/${report?.session_id ?? ""}`}
+                      className="min-w-0 flex-1 rounded border border-er-border bg-er-surface-2 px-2 py-1 font-mono text-[12px] text-er-ink-3 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => void handleCopyLink()}
+                      className="shrink-0 rounded-lg bg-er-btn-bg px-3 py-1 font-sans text-[13px] font-medium text-er-btn-text"
+                    >
+                      {copyLabel}
+                    </button>
+                  </div>
+                )}
+                {!isPublic && (
+                  <p className="mt-2 font-sans text-[13px] text-er-ink-3">
+                    Enable to share this report with anyone who has the link.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           <TopBarAvatar />
         </div>
       </header>
@@ -401,6 +506,24 @@ export default function ReportPage({ params }: PageProps) {
             </div>
           )}
         </div>
+
+        {/* Session Recording — audio player, hidden gracefully if no audio was stored */}
+        {hasAudio && backendToken && (
+          <div className="mt-10">
+            <h2 className="font-display text-[20px] font-semibold text-er-ink">
+              Session Recording
+            </h2>
+            <p className="mt-1 font-sans text-[14px] text-er-ink-2">
+              Your session audio, synchronized with the transcript.
+            </p>
+            <audio
+              controls
+              className="mt-4 w-full rounded-lg"
+              src={getSessionAudioUrl(report.session_id, backendToken)}
+              onError={() => setHasAudio(false)}
+            />
+          </div>
+        )}
 
         {/* Insights */}
         {report.insights.length > 0 && (

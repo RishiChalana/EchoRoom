@@ -27,6 +27,7 @@ class SessionResponse(BaseModel):
     created_at: datetime
     ended_at: Optional[datetime] = None
     report_ready: bool
+    is_public: bool = False
 
     model_config = {"from_attributes": True}
 

@@ -208,3 +208,73 @@ async def test_get_transcript_403_for_wrong_user(client: AsyncClient) -> None:
 
     res = await client.get(f"{SESSIONS_URL}/{session_id}/transcript", headers=headers_b)
     assert res.status_code == 403
+
+
+# ── Audio endpoint ──────────────────────────────────────────────────────────────
+
+REPORTS_URL = "/api/v1/reports"
+
+
+async def test_audio_endpoint_returns_404_for_unknown_session(client: AsyncClient) -> None:
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    res = await client.get(f"{REPORTS_URL}/{fake_id}/audio")
+    assert res.status_code == 404
+
+
+async def test_audio_endpoint_returns_404_when_no_audio_stored(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    from app.models.session import Session as SessionModel
+    from app.models.session_report import SessionReport
+    import uuid as uuid_mod
+
+    headers = await _auth_headers(client, "audio_test@test.com")
+    created = await client.post(SESSIONS_URL, json={}, headers=headers)
+    assert created.status_code == 201
+    session_id = uuid_mod.UUID(created.json()["id"])
+
+    # Insert a report row WITHOUT audio_data (simulates coach pipeline saving
+    # a report before any audio was stored — or when stream.py stored no audio).
+    report = SessionReport(
+        session_id=session_id,
+        overall_score=7.0,
+        engagement_avg=0.6,
+        clarity_avg=0.7,
+        insights=[],
+        rewrites=[],
+        summary="Test",
+        audio_data=None,
+        audio_content_type=None,
+    )
+    db_session.add(report)
+    await db_session.flush()
+
+    res = await client.get(f"{REPORTS_URL}/{session_id}/audio", headers=headers)
+    assert res.status_code == 404
+    assert "No audio" in res.json()["detail"]
+
+
+# ── Visibility ─────────────────────────────────────────────────────────────────
+
+
+async def test_set_session_visibility_toggles_is_public(client: AsyncClient) -> None:
+    headers = await _auth_headers(client, "visibility_owner@test.com")
+    created = await client.post(SESSIONS_URL, json={}, headers=headers)
+    assert created.status_code == 201
+    session_id = created.json()["id"]
+
+    res = await client.patch(
+        f"{SESSIONS_URL}/{session_id}/visibility",
+        json={"is_public": True},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    assert res.json()["is_public"] is True
+
+    res2 = await client.patch(
+        f"{SESSIONS_URL}/{session_id}/visibility",
+        json={"is_public": False},
+        headers=headers,
+    )
+    assert res2.status_code == 200
+    assert res2.json()["is_public"] is False

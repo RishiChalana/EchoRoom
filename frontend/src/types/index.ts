@@ -28,6 +28,7 @@ export interface Session {
   created_at: string;
   ended_at: string | null;
   report_ready: boolean;
+  is_public?: boolean;
 }
 
 export interface SessionList {

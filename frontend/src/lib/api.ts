@@ -85,3 +85,35 @@ export async function getHealth(): Promise<HealthResponse> {
   if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json() as Promise<HealthResponse>;
 }
+
+export async function updateUserName(name: string): Promise<{ id: string; email: string; name: string | null }> {
+  const res = await fetch(`${BASE_URL}/api/v1/users/me`, {
+    method: "PATCH",
+    headers: await authHeaders(),
+    credentials: "include",
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) throw new Error("Failed to update name");
+  return res.json() as Promise<{ id: string; email: string; name: string | null }>;
+}
+
+/**
+ * Returns the URL for the session audio stream.
+ * The browser's <audio> element fetches it directly using this URL + a ?token=
+ * query param, because browsers cannot set custom Authorization headers on audio
+ * src attributes. The token is the backend-signed JWT from the NextAuth session.
+ */
+export function getSessionAudioUrl(sessionId: string, token: string): string {
+  return `${BASE_URL}/api/v1/reports/${sessionId}/audio?token=${encodeURIComponent(token)}`;
+}
+
+export async function setSessionVisibility(id: string, is_public: boolean): Promise<Session> {
+  const res = await fetch(`${BASE_URL}/api/v1/sessions/${id}/visibility`, {
+    method: "PATCH",
+    headers: await authHeaders(),
+    credentials: "include",
+    body: JSON.stringify({ is_public }),
+  });
+  if (!res.ok) throw new Error("Failed to update visibility");
+  return res.json() as Promise<Session>;
+}

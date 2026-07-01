@@ -30,7 +30,7 @@ function useTimer(isRunning: boolean) {
   const h = Math.floor(elapsed / 3600).toString().padStart(2, "0");
   const m = Math.floor((elapsed % 3600) / 60).toString().padStart(2, "0");
   const s = (elapsed % 60).toString().padStart(2, "0");
-  return `${h}:${m}:${s}`;
+  return { formatted: `${h}:${m}:${s}`, elapsed };
 }
 
 // ── Engagement label ──────────────────────────────────────────────────────────
@@ -204,7 +204,19 @@ export default function SessionPage({ params }: PageProps) {
 
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
-  const timer = useTimer(recording);
+  const { formatted: timer, elapsed: elapsedSeconds } = useTimer(recording);
+
+  // Live WPM: total words in transcript history divided by elapsed recording seconds.
+  // Hidden until at least 10 words have been transcribed — avoids meaningless spikes
+  // on the very first chunk (e.g. "1200 WPM" from a 1-word chunk in 0.05 s).
+  const totalWords = transcriptHistory.reduce(
+    (sum, chunk) => sum + chunk.text.split(/\s+/).filter(Boolean).length,
+    0,
+  );
+  const liveWpm =
+    totalWords >= 10 && elapsedSeconds > 0
+      ? Math.round((totalWords / elapsedSeconds) * 60)
+      : null;
 
   useEffect(() => {
     if (!session || session.id !== params.id) {
@@ -316,6 +328,16 @@ export default function SessionPage({ params }: PageProps) {
         <span className="font-label text-[12px] font-medium uppercase tracking-wide" style={{ color: engColor }}>
           {engLabel}
         </span>
+
+        {/* Live WPM — only shown after 10 words have been transcribed */}
+        {liveWpm !== null && (
+          <>
+            <div className="mx-3 h-4 w-px bg-[#2a2a2a]" />
+            <span className="font-mono text-[12px]" style={{ color: "#888888" }}>
+              {liveWpm} WPM
+            </span>
+          </>
+        )}
 
         {/* "Try Again" button — only shown when reconnection has permanently failed */}
         {isFailed && (

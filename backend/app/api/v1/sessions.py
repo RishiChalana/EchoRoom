@@ -13,6 +13,8 @@ from app.core.rate_limit import limiter
 from app.models.agent_event import AgentEvent
 from app.models.session import Session
 from app.models.session_report import SessionReport
+from pydantic import BaseModel
+
 from app.schemas.session import CreateSessionRequest, SessionListResponse, SessionResponse
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -40,6 +42,7 @@ async def create_session(
         audience_profile=body.audience_profile,
         name=body.name,
         report_ready=False,
+        is_public=False,
         user_email=user_email,
     )
     db.add(session)
@@ -177,6 +180,35 @@ async def get_session_transcript(
 
     log.info("Transcript fetched", session_id=str(session_id), chunk_count=len(chunks))
     return {"transcript_chunks": chunks, "latest_engagement_avg": latest_engagement_avg}
+
+
+class VisibilityRequest(BaseModel):
+    is_public: bool
+
+
+@router.patch("/{session_id}/visibility", response_model=SessionResponse)
+@limiter.limit("20/minute")
+async def set_session_visibility(
+    request: Request,
+    session_id: UUID,
+    body: VisibilityRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional),
+) -> SessionResponse:
+    result = await db.execute(select(Session).where(Session.id == session_id))
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    _check_ownership(session, current_user)
+    session.is_public = body.is_public
+    await db.flush()
+    await db.refresh(session)
+    log.info(
+        "Session visibility updated",
+        session_id=str(session_id),
+        is_public=body.is_public,
+    )
+    return SessionResponse.model_validate(session)
 
 
 @router.get("", response_model=SessionListResponse)
