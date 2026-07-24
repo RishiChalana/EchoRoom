@@ -36,7 +36,7 @@ httpx==0.28.0
 
 
 # Agent pipeline
-# faster-whisper==1.1.0  # worker-only
+faster-whisper==1.1.0
 celery==5.4.0
 instructor==1.7.0
 openai==1.59.2
